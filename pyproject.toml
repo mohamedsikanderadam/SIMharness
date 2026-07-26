@@ -1,0 +1,57 @@
+[project]
+name = "simharness"
+version = "0.1.0"
+description = "Persona-driven conversation simulator with verifiable rewards. One harness, two consumers: eval scorecards and multi-turn RL."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "pydantic>=2.9,<3",
+    "typing-extensions>=4.12,<5",
+    "httpx>=0.27,<1",
+    "anthropic>=0.40,<1",
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+    "numpy>=2.0,<3",
+    "matplotlib>=3.9,<4",
+    "cmudict>=1.0,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.6,<1",
+    "mypy>=1.11,<2",
+]
+
+# Exact pins live in uv.lock (committed). The ranges above are compatibility
+# bounds; `uv sync --frozen` is the reproducible install path.
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["simharness"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ANN"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
