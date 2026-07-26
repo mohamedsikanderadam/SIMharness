@@ -192,6 +192,9 @@ class FailureTag(StrEnum):
     HALLUCINATED_PRICE = "hallucinated_price"
     HALLUCINATED_POLICY = "hallucinated_policy"
     HALLUCINATED_AVAILABILITY = "hallucinated_availability"
+    MISSTATED_BOOKING_RECORD = "misstated_booking_record"
+    """Said something about the customer's records that the records do not
+    support — including asserting there is no booking without ever looking."""
     BOOKED_UNAVAILABLE_SLOT = "booked_unavailable_slot"
     WRONG_PARTY_SIZE = "wrong_party_size"
     SKIPPED_DEPOSIT = "skipped_deposit"
@@ -834,6 +837,10 @@ class ClaimCheck(Frozen):
     verdict: ClaimVerdict
     grounded_in_call_id: str | None = None
     """The tool result that entitles the agent to say this, if any."""
+    bound_field: str | None = None
+    """The ground-truth field the typed grammar bound this claim to, when it was
+    layer 1 that matched. Lets an evidence requirement ask for a correct
+    statement of *this specific policy* rather than of any policy at all."""
 
 
 class CheckResult(Frozen):
@@ -869,6 +876,11 @@ class RewardConfig(Frozen):
     cost_shaping_enabled: bool = False
     cost_reference_turns: Annotated[int, Field(ge=1)] = 8
     cost_reference_tokens: Annotated[int, Field(ge=1)] = 4000
+    unparsed_policy: Literal["neutral", "penalise"] = "neutral"
+    """What happens to a claim the grammar could not bind. ``neutral`` drops it
+    from the claim-accuracy denominator and counts it against
+    ``Scorecard.claim_coverage``; ``penalise`` scores it as incorrect. Approved
+    default is ``neutral`` — see DESIGN_NOTE.md."""
 
     @property
     def digest(self) -> str:

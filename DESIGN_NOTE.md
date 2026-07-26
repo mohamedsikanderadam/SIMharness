@@ -1,3 +1,7 @@
+> **Decision: approved 2026-07-26.** Option C is what Phase 1 builds, and
+> `RewardConfig.unparsed_policy` ships with it, defaulting to `neutral`.
+> The rest of this note is the reasoning that led there, kept for the record.
+
 # The one contestable decision
 
 **What the verifier does with a factual claim its grammar could not parse.**

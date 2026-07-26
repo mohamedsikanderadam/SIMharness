@@ -1,6 +1,8 @@
 # simharness — architecture
 
-Status: **Phase 0, design only.** Nothing below `schemas.py` is implemented yet.
+Status: **Phase 1 complete.** `schemas`, `world`, `verifier` and `scenarios` are
+built and tested. `personas`, `simulator`, `noise`, `adapters`, `runner` and `api`
+are still design only.
 
 ## 1. What this is
 
@@ -71,8 +73,20 @@ greps the import graph:
   ledger. Exposed as declarative `ToolSpec`s with JSON Schema parameters, so a
   scenario enables a subset by name and the world never reads the scenario.
   `snapshot()` / `restore()` for exact reset.
+
+  **The world is strict about physics and permissive about policy.** It rejects
+  an unknown slot id or a malformed argument; it permits overbooking, a missing
+  deposit, and a refund against a booking reference that never existed. Every one
+  of those lands in the ledger for the verifier. A world that enforced its own
+  policies would be one where every agent scores full marks, because the backend
+  had quietly done the agent's job — and the refund scenario would measure
+  nothing at all.
 - **`verifier/`** — `verify(initial, final, scenario, trajectory, config) ->
-  (Scorecard, RewardBreakdown)`. No LLM, no I/O, no clock, no randomness.
+  Scorecard` (which carries the `RewardBreakdown`). No LLM, no I/O, no clock, no
+  randomness.
+- **`scenarios/`** — the three shipped scenarios. Under the package rather than
+  at the repository root so an installed wheel can still resolve
+  `--scenario booking`.
 - **`personas/`** — declarative `Persona` specs plus the fidelity probe suite.
 - **`simulator/`** — the counterpart policy behind one interface, with
   `anthropic`, `openai_compatible`, and `scripted` providers.
@@ -205,12 +219,19 @@ sitting on top of parts that sum to 0.3.
 
 | Component | Raw | Default weight |
 |---|---|---|
-| `task_success` | all `required_records` matched → 1 | +1.0 |
-| `field_accuracy` | fraction of individual `FieldMatch`es satisfied | +0.3 |
+| `task_success` | **every** criterion the scenario declared — records, prohibitions and evidence — met | +1.0 |
+| `field_accuracy` | pooled partial credit over field matches and evidence requirements | +0.3 |
 | `forbidden_mutation` | 1 if the ledger contains any forbidden op | −1.0 |
 | `claim_accuracy` | correct / (correct + incorrect + ungrounded) | +0.5 |
 | `termination` | 1 if in `CLEAN_TERMINATIONS` | +0.2 |
 | `cost` | normalised agent turns + tokens | −0.1, **off by default** |
+
+`task_success` deliberately includes the prohibitions and the evidence
+requirements. Reading it as records-only handed a free 1.0 to the two scenarios
+whose correct outcome is that *nothing in the world changed*, which is exactly
+backwards. The `forbidden_mutation` penalty still fires separately; the
+double-count is intentional, and it is what gives the refusal scenarios a reward
+with real range (measured: +2.0 correct, −0.30 for complying).
 
 `field_accuracy` exists for RL rather than for eval. A pure 0/1 task reward makes
 every rollout in a GRPO group identical when the task is hard, the group's
@@ -270,9 +291,13 @@ decision I think is genuinely contestable.
 
 ## 10. Open, pending review
 
-1. The unparsed-claim policy — see DESIGN_NOTE.md. This is the one I want a
-   decision on before Phase 1, because it determines what the verifier's contract
-   is and the verifier defines the reward.
+1. ~~The unparsed-claim policy~~ — **decided.** Option C, with
+   `RewardConfig.unparsed_policy` defaulting to `neutral`. See DESIGN_NOTE.md.
 2. Whether the eval product needs per-turn latency SLAs as a scored component.
    Currently `latency_ms` is recorded but not scored, which is right for RL and
    possibly wrong for eval.
+3. The claim grammar's qualitative recall. Phase 1 ships four typed rules, three
+   qualitative patterns and numeric grounding. `claim_coverage` reads 1.0 across
+   the hand-inspected transcripts, but that is against agent text *we wrote*.
+   The number to watch is coverage against a real agent's phrasing, which does
+   not exist until Phase 4.
