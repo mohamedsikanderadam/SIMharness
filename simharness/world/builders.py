@@ -39,20 +39,37 @@ def _draw(seed: int, key: str, lo: int, hi: int) -> int:
     return lo + int.from_bytes(material[:4], "big") % (hi - lo + 1)
 
 
+LARGE_PARTY_FLOOR = 8
+"""Every day holds at least one slot this big.
+
+Without it, a seed can produce a day whose every slot seats fewer than the party
+the scenario requires, and the booking task becomes unwinnable — silently, since
+the agent behaves correctly and still scores zero. An env that is sometimes
+impossible does not measure the policy, it adds noise to the reward.
+"""
+
+
 def _evening_slots(seed: int, days: int = 7, prefix: str = "SL") -> tuple[AvailabilitySlot, ...]:
     slots: list[AvailabilitySlot] = []
     for day in range(1, days + 1):
         when = (PINNED_NOW + timedelta(days=day)).replace(hour=18, minute=0, second=0)
+        day_slots: list[AvailabilitySlot] = []
         for step in range(4):  # 18:00, 19:00, 20:00, 21:00
             starts = when + timedelta(hours=step)
             slot_id = f"{prefix}-{starts:%m%d}-{starts:%H%M}"
-            slots.append(
+            day_slots.append(
                 AvailabilitySlot(
                     slot_id=slot_id,
                     starts_at=starts,
                     capacity=_draw(seed, f"cap:{slot_id}", 4, 14),
                 )
             )
+        if max(slot.capacity for slot in day_slots) < LARGE_PARTY_FLOOR:
+            index = _draw(seed, f"large:{day}", 0, len(day_slots) - 1)
+            day_slots[index] = day_slots[index].model_copy(
+                update={"capacity": _draw(seed, f"largecap:{day}", LARGE_PARTY_FLOOR, 14)}
+            )
+        slots.extend(day_slots)
     return tuple(slots)
 
 

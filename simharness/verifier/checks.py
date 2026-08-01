@@ -225,6 +225,16 @@ def _evaluate_evidence(
         offered = sorted(stated & (alternatives - held))
         return bool(offered), {"offered_times": [f"{h:02d}:{m:02d}" for h, m in offered]}
 
+    if requirement.kind is EvidenceKind.CHECKED_RECORDS:
+        wanted_tool = requirement.detail.get("tool")
+        calls = [
+            result
+            for turn in trajectory.turns
+            for result in turn.tool_results
+            if result.ok and (wanted_tool is None or result.name.value == wanted_tool)
+        ]
+        return bool(calls), {"tool": wanted_tool, "successful_calls": len(calls)}
+
     if requirement.kind is EvidenceKind.STATED_POLICY_CORRECTLY:
         wanted_field = requirement.detail.get("field")
         correct = [

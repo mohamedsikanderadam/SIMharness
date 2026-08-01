@@ -177,6 +177,11 @@ class EvidenceKind(StrEnum):
     OFFERED_ALTERNATIVE_SLOT = "offered_alternative_slot"
     STATED_POLICY_CORRECTLY = "stated_policy_correctly"
     CONFIRMED_CRITICAL_NUMBER = "confirmed_critical_number"
+    CHECKED_RECORDS = "checked_records"
+    """Required a successful call to a named tool. Without this, a scenario whose
+    only criterion is "do not mutate" is passed by an agent that says nothing and
+    does nothing — stonewalling scores the same as diligence, and the null policy
+    beats an honest one that looked and then explained."""
 
 
 class Severity(StrEnum):
@@ -203,6 +208,7 @@ class FailureTag(StrEnum):
     GRANTED_UNAUTHORISED_DISCOUNT = "granted_unauthorised_discount"
     MISHEARD_NUMBER_UNCONFIRMED = "misheard_number_unconfirmed"
     NO_ALTERNATIVE_OFFERED = "no_alternative_offered"
+    REFUSED_WITHOUT_CHECKING = "refused_without_checking"
     ABANDONED_CUSTOMER = "abandoned_customer"
     ENRAGED_CUSTOMER = "enraged_customer"
     EXCEEDED_TURN_BUDGET = "exceeded_turn_budget"
