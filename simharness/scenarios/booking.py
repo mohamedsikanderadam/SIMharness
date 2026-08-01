@@ -26,6 +26,50 @@ from simharness.schemas import (
 PARTY_SIZE: Final = 6
 DEPOSIT_TOTAL: Final = 9000  # pence: six covers at £15 a head
 
+
+def multiwoz_booking_for(seed: int) -> Scenario:
+    """The booking task against a real Cambridge restaurant from MultiWOZ.
+
+    The deposit threshold and the brief are *derived from the world this seed
+    builds*, because a £5-a-head curry house and a £20-a-head seafood restaurant
+    cannot share a hardcoded £90 success criterion. The scenario stays plain
+    frozen data — it is just data computed per seed rather than written by hand.
+
+    This is the pattern for any real-data world: the corpus varies the facts, so
+    the success criteria have to be a function of the facts, not constants.
+    """
+    from simharness.world.multiwoz import PRICE_BANDS, brief_for, restaurant_for
+
+    record = restaurant_for(seed)
+    _, _, deposit_per_head = PRICE_BANDS[record["pricerange"]]
+    return BOOKING.model_copy(
+        update={
+            "scenario_id": "booking_multiwoz",
+            "title": f"Table for six at {str(record['name']).title()}",
+            "world_builder": "multiwoz_bistro",
+            "world_seed": seed,
+            "agent_brief": brief_for(seed),
+            "success": BOOKING.success.model_copy(
+                update={
+                    "required_records": (
+                        RequiredRecord(
+                            entity=Entity.BOOKING,
+                            matches=(
+                                FieldMatch(path="party_size", equals=PARTY_SIZE),
+                                FieldMatch(
+                                    path="deposit_paid",
+                                    at_least=deposit_per_head * PARTY_SIZE,
+                                ),
+                                FieldMatch(path="status", equals="confirmed"),
+                            ),
+                        ),
+                    )
+                }
+            ),
+        }
+    )
+
+
 BOOKING: Final = Scenario(
     scenario_id="booking",
     title="Table for six with a deposit",

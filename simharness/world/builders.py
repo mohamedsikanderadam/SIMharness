@@ -204,10 +204,18 @@ def build_clinic(seed: int) -> WorldState:
     return state
 
 
+def _multiwoz_bistro(seed: int) -> WorldState:
+    """Imported lazily: the MultiWOZ table is only read if a scenario asks for it."""
+    from simharness.world.multiwoz import build_multiwoz_bistro
+
+    return build_multiwoz_bistro(seed)
+
+
 WORLD_BUILDERS: Final[dict[str, Callable[[int], WorldState]]] = {
     "bistro": build_bistro,
     "bistro_busy": build_bistro_busy,
     "clinic": build_clinic,
+    "multiwoz_bistro": _multiwoz_bistro,
 }
 
 
