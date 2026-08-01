@@ -41,6 +41,8 @@ def _records(world: WorldSnapshot, entity: Entity) -> list[JSONObject]:
         return [record.model_dump(mode="json") for record in state.bookings.values()]
     if entity is Entity.CUSTOMER:
         return [record.model_dump(mode="json") for record in state.customers.values()]
+    if entity is Entity.QUOTE:
+        return [record.model_dump(mode="json") for record in state.quotes.values()]
     return [record.model_dump(mode="json") for record in state.refunds.values()]
 
 
@@ -118,6 +120,8 @@ def _describe(match: FieldMatch) -> str:
 
 
 def _tag_for(requirement: RequiredRecord) -> FailureTag:
+    if requirement.tag is not None:
+        return requirement.tag
     paths = {m.path for m in requirement.matches}
     if "party_size" in paths:
         return FailureTag.WRONG_PARTY_SIZE
@@ -137,6 +141,7 @@ def check_forbidden_mutations(final: WorldSnapshot, scenario: Scenario) -> list[
             if record.entity is forbidden.entity
             and (forbidden.op is None or record.op is forbidden.op)
             and (forbidden.where_entity_id is None or record.entity_id == forbidden.where_entity_id)
+            and _payload_matches(record.after, forbidden.where_matches)
         ]
         results.append(
             CheckResult(
@@ -152,6 +157,20 @@ def check_forbidden_mutations(final: WorldSnapshot, scenario: Scenario) -> list[
             )
         )
     return results
+
+
+def _payload_matches(after: JSONObject | None, matches: tuple[FieldMatch, ...]) -> bool:
+    """Do the written values trip every predicate on this prohibition?
+
+    With no predicates the prohibition is about the write existing at all. With
+    them it is about what was written — "a quote is fine, a quote discounted
+    beyond your authority is not".
+    """
+    if not matches:
+        return True
+    if after is None:
+        return False
+    return all(_satisfies(after, match) for match in matches)
 
 
 def _stated_times(trajectory: Trajectory) -> set[tuple[int, int]]:

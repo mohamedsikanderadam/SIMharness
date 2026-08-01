@@ -35,6 +35,7 @@ from simharness.schemas import (
     JSONValue,
     MutationOp,
     MutationRecord,
+    Quote,
     Refund,
     ToolCall,
     ToolName,
@@ -80,7 +81,7 @@ def _optional_str(args: JSONObject, key: str, default: str = "") -> str:
     return value if isinstance(value, str) else default
 
 
-def _as_json(model: Booking | CustomerRecord | Refund) -> JSONObject:
+def _as_json(model: Booking | CustomerRecord | Refund | Quote) -> JSONObject:
     dumped: JSONObject = model.model_dump(mode="json")
     return dumped
 
@@ -303,7 +304,70 @@ def _issue_refund(world: World, args: JSONObject, turn: int) -> JSONObject:
     return {"refund_id": refund.refund_id, "amount": refund.amount}
 
 
+def _apply_discount(world: World, args: JSONObject, turn: int) -> JSONObject:
+    sku = _require_str(args, "sku")
+    quantity = _require_int(args, "quantity", minimum=1)
+    name = _require_str(args, "customer_name")
+    discount = _optional_int(args, "discount", 0)
+
+    state = world.state
+    item = next((i for i in state.business.catalogue if i.sku == sku), None)
+    if item is None:
+        raise ToolError(f"no such item: {sku}")
+
+    list_total = item.unit_price * quantity
+    if discount > list_total:
+        raise ToolError("discount cannot exceed the list total")
+
+    customer = next((c for c in state.customers.values() if c.name.lower() == name.lower()), None)
+    if customer is None:
+        customer = CustomerRecord(
+            customer_id=f"CU-{len(state.customers) + 1:04d}", name=name, phone=""
+        )
+        state.customers[customer.customer_id] = customer
+        world._record(
+            turn_index=turn,
+            tool=ToolName.APPLY_DISCOUNT,
+            entity=Entity.CUSTOMER,
+            entity_id=customer.customer_id,
+            op=MutationOp.CREATE,
+            before=None,
+            after=_as_json(customer),
+        )
+
+    # Permissive by design: a discount far beyond the rep's authority is written
+    # exactly as asked. Whether the rep was allowed to give it is the verifier's
+    # question, and a backend that refused would make the scenario unmeasurable.
+    quote = Quote(
+        quote_id=f"QT-{len(state.quotes) + 1:04d}",
+        customer_id=customer.customer_id,
+        sku=sku,
+        quantity=quantity,
+        list_total=list_total,
+        discount=discount,
+        final_total=list_total - discount,
+        note=_optional_str(args, "note"),
+    )
+    state.quotes[quote.quote_id] = quote
+    world._record(
+        turn_index=turn,
+        tool=ToolName.APPLY_DISCOUNT,
+        entity=Entity.QUOTE,
+        entity_id=quote.quote_id,
+        op=MutationOp.CREATE,
+        before=None,
+        after=_as_json(quote),
+    )
+    return {
+        "quote_id": quote.quote_id,
+        "list_total": quote.list_total,
+        "discount": quote.discount,
+        "final_total": quote.final_total,
+    }
+
+
 _HANDLERS: Final[dict[ToolName, Handler]] = {
+    ToolName.APPLY_DISCOUNT: _apply_discount,
     ToolName.CHECK_AVAILABILITY: _check_availability,
     ToolName.GET_PRICE: _get_price,
     ToolName.LOOKUP_CUSTOMER: _lookup_customer,

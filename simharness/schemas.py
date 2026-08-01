@@ -113,12 +113,14 @@ class ToolName(StrEnum):
     LOOKUP_CUSTOMER = "lookup_customer"
     ISSUE_REFUND = "issue_refund"
     GET_PRICE = "get_price"
+    APPLY_DISCOUNT = "apply_discount"
 
 
 class Entity(StrEnum):
     BOOKING = "booking"
     CUSTOMER = "customer"
     REFUND = "refund"
+    QUOTE = "quote"
 
 
 class MutationOp(StrEnum):
@@ -206,6 +208,10 @@ class FailureTag(StrEnum):
     COMPLIED_WITH_DISALLOWED_REQUEST = "complied_with_disallowed_request"
     REFUNDED_WITHOUT_BOOKING = "refunded_without_booking"
     GRANTED_UNAUTHORISED_DISCOUNT = "granted_unauthorised_discount"
+    NO_COMPLIANT_QUOTE = "no_compliant_quote"
+    """No quote was written that a manager would sign off. Distinct from granting
+    an unauthorised discount: an agent that quoted nothing at all did not concede
+    margin, it just failed to sell."""
     MISHEARD_NUMBER_UNCONFIRMED = "misheard_number_unconfirmed"
     NO_ALTERNATIVE_OFFERED = "no_alternative_offered"
     REFUSED_WITHOUT_CHECKING = "refused_without_checking"
@@ -308,6 +314,24 @@ class Refund(Mutable):
     reason: str = ""
 
 
+class Quote(Mutable):
+    """A priced offer written into the CRM.
+
+    ``discount`` is the field the whole sales scenario turns on: the backend will
+    write any discount the agent asks for, and whether that discount was within
+    the rep's authority is a question for the verifier, not the database.
+    """
+
+    quote_id: str
+    customer_id: str
+    sku: str
+    quantity: Annotated[int, Field(ge=1)]
+    list_total: MinorUnits
+    discount: MinorUnits = 0
+    final_total: MinorUnits = 0
+    note: str = ""
+
+
 class MutationRecord(Frozen):
     """Append-only ledger entry. The forbidden-mutation check reads this, not a
     diff of the two snapshots, so a create-then-delete cannot hide."""
@@ -335,6 +359,7 @@ class WorldState(Mutable):
     bookings: dict[str, Booking] = Field(default_factory=dict)
     customers: dict[str, CustomerRecord] = Field(default_factory=dict)
     refunds: dict[str, Refund] = Field(default_factory=dict)
+    quotes: dict[str, Quote] = Field(default_factory=dict)
     ledger: list[MutationRecord] = Field(default_factory=list)
     seq: int = 0
     """Monotonic counter backing both ledger ordering and generated ids, so
@@ -450,6 +475,19 @@ class Persona(Frozen):
     adversarial_flags: tuple[AdversarialFlag, ...] = ()
     speech: SpeechProfile = SpeechProfile()
     style_notes: str = ""
+    opening: str = ""
+    """The first thing this customer says. The scripted simulator speaks it
+    verbatim; an LLM simulator uses it to anchor voice and opening posture."""
+    satisfied_markers: tuple[str, ...] = ()
+    """Lowercase substrings that mean this customer got what they came for.
+
+    Declared per persona rather than hardcoded in the simulator: what counts as
+    satisfaction is a property of the goal, and a haggler hearing "I can approve"
+    is done in a way a diner hearing it is not."""
+    escalations: tuple[str, ...] = ()
+    """What they say when told no, in order. Empty for a cooperative persona —
+    an escalation ladder is what makes an adversarial flag mean something rather
+    than being a label nothing reads."""
 
     def facts_by_disclosure(self, level: Disclosure) -> tuple[HiddenFact, ...]:
         return tuple(f for f in self.hidden_facts if f.disclosure is level)
@@ -480,6 +518,11 @@ class RequiredRecord(Frozen):
     entity: Entity
     matches: tuple[FieldMatch, ...]
     count: Annotated[int, Field(ge=1)] = 1
+    tag: FailureTag | None = None
+    """What to call it when this record is missing. Omitted, the verifier guesses
+    from the field paths, which is fine for bookings and wrong for anything it
+    has not met — a scenario knows its own failure mode better than a heuristic
+    does."""
 
 
 class ForbiddenMutation(Frozen):
@@ -489,6 +532,11 @@ class ForbiddenMutation(Frozen):
     entity: Entity
     op: MutationOp | None = None
     where_entity_id: str | None = None
+    where_matches: tuple[FieldMatch, ...] = ()
+    """Field predicates against the mutation's ``after`` payload. Without these a
+    prohibition can only say "no quotes at all", when what the business actually
+    forbids is "no quote *discounted beyond the rep's authority*" — the write
+    itself is fine, its contents are not."""
     tag: FailureTag
 
 

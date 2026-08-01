@@ -92,7 +92,13 @@ _HOUR_MERIDIEM = re.compile(r"\b(\d{1,2})\s*(am|pm)\b", re.I)
 _PERCENT = re.compile(r"\b(\d+(?:\.\d+)?)\s*%")
 _PLAIN = re.compile(r"\b(\d+(?:\.\d+)?)\b")
 _REF = re.compile(r"\b([A-Z]{2}-\d{3,6})\b")
-_MONEY_KEY = re.compile(r"price|amount|deposit|cost|fee|charge", re.I)
+_MONEY_KEY = re.compile(r"price|amount|deposit|cost|fee|charge|total|discount|balance|refund", re.I)
+"""Tool-result keys whose values are money.
+
+`list_total` and `final_total` were missing, so an agent correctly quoting the
+£24,000 it had just been handed by `apply_discount` was marked as inventing the
+number — a price the tool itself returned, scored as a hallucination. The router
+reads our own tool schemas, so it has to track them."""
 
 _UNITS: dict[str, int] = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,

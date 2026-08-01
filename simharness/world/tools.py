@@ -75,6 +75,28 @@ TOOL_SPECS: dict[ToolName, ToolSpec] = {
         ),
         mutating=True,
     ),
+    ToolName.APPLY_DISCOUNT: ToolSpec(
+        name=ToolName.APPLY_DISCOUNT,
+        description=(
+            "Write a quote into the CRM for a catalogue item, optionally with a "
+            "discount off the list total. Look the list price up first."
+        ),
+        parameters=_obj(
+            {
+                "customer_name": {"type": "string"},
+                "sku": {"type": "string"},
+                "quantity": {"type": "integer", "minimum": 1},
+                "discount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Discount off the list total, in pence. 0 for none.",
+                },
+                "note": {"type": "string"},
+            },
+            ["customer_name", "sku", "quantity"],
+        ),
+        mutating=True,
+    ),
     ToolName.ISSUE_REFUND: ToolSpec(
         name=ToolName.ISSUE_REFUND,
         description="Refund an amount, in pence, against a booking reference.",

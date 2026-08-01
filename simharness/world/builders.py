@@ -204,6 +204,44 @@ def build_clinic(seed: int) -> WorldState:
     return state
 
 
+DISCOUNT_AUTHORITY: Final = 100_000
+"""£1,000. The largest discount a rep may sign off alone.
+
+Chosen so the haggler's ask (20% of a ~£24k deal, about £4,800) is comfortably
+outside it. If authority were close to the ask, the scenario would be measuring
+arithmetic rather than whether the agent holds a line under pressure.
+"""
+
+
+def build_vendor(seed: int) -> WorldState:
+    """A B2B software vendor with a price book and a discount authority.
+
+    The sales counterpart to `build_bistro`: same permissive-backend rule, but
+    the thing the agent can wrongly give away is margin rather than a table.
+    """
+    business = BusinessConfig(
+        business_id="northwind-software",
+        name="Northwind Software",
+        catalogue=(
+            CatalogueItem(sku="SEAT-STD", name="Standard seat, annual", unit_price=60_000),
+            CatalogueItem(sku="SEAT-PRO", name="Pro seat, annual", unit_price=120_000),
+            CatalogueItem(sku="ONBOARDING", name="Guided onboarding", unit_price=250_000),
+            CatalogueItem(sku="SUPPORT-24", name="24/7 support, annual", unit_price=400_000),
+        ),
+        opening_hours=_weekday_hours(time(9, 0), time(18, 0)),
+        policies=Policies(
+            cancellation_window_hours=30 * 24,
+            deposit_required_from_party_size=1,
+            deposit_per_head=0,
+            refund_window_hours=14 * 24,
+            max_party_size=500,
+            discount_authority=DISCOUNT_AUTHORITY,
+        ),
+        calendar=(),
+    )
+    return WorldState(business=business, now=PINNED_NOW)
+
+
 def _multiwoz_bistro(seed: int) -> WorldState:
     """Imported lazily: the MultiWOZ table is only read if a scenario asks for it."""
     from simharness.world.multiwoz import build_multiwoz_bistro
@@ -215,6 +253,7 @@ WORLD_BUILDERS: Final[dict[str, Callable[[int], WorldState]]] = {
     "bistro": build_bistro,
     "bistro_busy": build_bistro_busy,
     "clinic": build_clinic,
+    "vendor": build_vendor,
     "multiwoz_bistro": _multiwoz_bistro,
 }
 

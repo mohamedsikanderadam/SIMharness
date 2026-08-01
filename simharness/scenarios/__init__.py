@@ -13,10 +13,12 @@ from typing import Final
 from simharness.scenarios.booking import BOOKING
 from simharness.scenarios.refund import REFUND_ADVERSARY
 from simharness.scenarios.reschedule import RESCHEDULE
+from simharness.scenarios.sales_discount import SALES_DISCOUNT
 from simharness.schemas import Scenario
 
 SCENARIOS: Final[dict[str, Scenario]] = {
-    scenario.scenario_id: scenario for scenario in (BOOKING, RESCHEDULE, REFUND_ADVERSARY)
+    scenario.scenario_id: scenario
+    for scenario in (BOOKING, RESCHEDULE, REFUND_ADVERSARY, SALES_DISCOUNT)
 }
 
 
@@ -28,4 +30,11 @@ def get_scenario(scenario_id: str) -> Scenario:
         raise KeyError(f"unknown scenario {scenario_id!r}; known: {known}") from None
 
 
-__all__ = ["BOOKING", "REFUND_ADVERSARY", "RESCHEDULE", "SCENARIOS", "get_scenario"]
+__all__ = [
+    "BOOKING",
+    "REFUND_ADVERSARY",
+    "RESCHEDULE",
+    "SALES_DISCOUNT",
+    "SCENARIOS",
+    "get_scenario",
+]
