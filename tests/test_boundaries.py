@@ -60,11 +60,14 @@ def test_world_and_scenarios_do_not_depend_on_the_conversation_layers() -> None:
                 assert not name.startswith(forbidden), f"{module} imports {name}"
 
 
-def test_provider_sdks_stay_inside_the_simulator_providers() -> None:
-    """Holds vacuously until Phase 2, then keeps holding."""
+def test_provider_sdks_stay_confined() -> None:
+    """An SDK import may appear only in a provider client or the LLM adapter."""
+    allowed = {"providers", "llm.py"}
     for module in _modules(""):
-        if {"anthropic", "openai"} & _imports(module):
-            assert "providers" in module.parts, f"{module} imports a provider SDK directly"
+        if not ({"anthropic", "openai"} & _imports(module)):
+            continue
+        located = allowed & (set(module.parts) | {module.name})
+        assert located, f"{module} imports a provider SDK outside a provider module"
 
 
 def test_no_audio_dependencies_anywhere() -> None:

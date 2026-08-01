@@ -693,9 +693,19 @@ class SimulatorOutput(Frozen):
 
 class SimulatorConfig(Frozen):
     provider: Literal["anthropic", "openai_compatible", "scripted"] = "anthropic"
-    model: str = ""
-    temperature: Annotated[float, Field(ge=0.0, le=2.0)] = 1.0
-    max_tokens: Annotated[int, Field(ge=1)] = 512
+    model: str = "claude-opus-5"
+    effort: Literal["low", "medium", "high", "xhigh", "max"] = "low"
+    """Replaces what used to be a ``temperature`` field.
+
+    Current Claude models reject ``temperature``, ``top_p`` and ``top_k`` with a
+    400 — the parameter was removed, not deprecated, so a config carrying one
+    would have failed every call. Effort is the current control, and ``low`` is
+    right for a counterpart: it has to sound like a customer, not solve a
+    problem, and effort is the main lever on both latency and spend.
+    """
+    max_tokens: Annotated[int, Field(ge=1)] = 2048
+    """Caps thinking *and* response text together. Thinking is on by default on
+    Claude Opus 5, so a value sized for a one-line utterance truncates."""
     base_url: str | None = None
     cassette_mode: Literal["off", "record", "replay"] = "off"
     """Determinism for an LLM counterpart is only achievable through record and
