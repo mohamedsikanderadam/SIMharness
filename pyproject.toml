@@ -1,8 +1,7 @@
 [project]
 name = "simharness"
 version = "0.1.0"
-description = "SIMharness: evaluation tool for voice agents. Simulated customers, a noisy channel, and a verifiable reward — no LLM judge in the primary path."
-readme = "README.md"
+description = "SIMharness: red-team dialogue harness for exposing false or ungrounded claims in simulated agents."
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 dependencies = [
