@@ -121,9 +121,30 @@ def _load_json_documents(stripped: str) -> list[Any] | None:
     return documents or None
 
 
+_ENVELOPE_KEYS = ("data", "conversation", "result", "call")
+
+
+def _unwrap(doc: dict[str, Any]) -> dict[str, Any]:
+    """Peel an API envelope such as ``{"data": {...}}`` off the conversation.
+
+    Vendors differ on whether the export is the response body or the object
+    inside it, and a business exporting its own logs should not have to know
+    which. Only unwrapped when the outer object carries no transcript of its
+    own, so a real field named ``data`` is never mistaken for an envelope.
+    """
+    if _transcript_entries(doc) or "turns" in doc:
+        return doc
+    for key in _ENVELOPE_KEYS:
+        inner = doc.get(key)
+        if isinstance(inner, dict) and (_transcript_entries(inner) or "turns" in inner):
+            return inner
+    return doc
+
+
 def _parse_document(doc: Any, *, default_call_id: str) -> CallLog:
     if not isinstance(doc, dict):
         raise ValueError(f"expected a JSON object per call, got {type(doc).__name__}")
+    doc = _unwrap(doc)
     if _looks_normalised(doc):
         return parse_normalised(doc)
     return parse_elevenlabs_conversation(doc, default_call_id=default_call_id)

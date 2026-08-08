@@ -32,6 +32,7 @@ from simharness.reporting.schemas import (
     Category,
     Finding,
     FindingKind,
+    LogSpeaker,
     Metric,
     MetricBasis,
     Severity,
@@ -53,10 +54,16 @@ _DISOBEDIENCE = frozenset(
 class RequiredBehaviour(Frozen):
     """Something the agent must do, and the condition that makes it required.
 
-    ``trigger`` is matched against the whole call; ``satisfied_by`` against the
-    agent's turns. A behaviour whose trigger never fires is not counted either
-    way — an agent is not marked down for failing to state a booking policy on a
-    call where nobody tried to book.
+    ``trigger`` is matched against what the caller asked for plus any turn where
+    the agent committed to something; ``satisfied_by`` against the agent's turns.
+    A behaviour whose trigger never fires is not counted either way — an agent is
+    not marked down for failing to state a booking policy on a call where nobody
+    tried to book.
+
+    Deliberately *not* matched against the agent's whole transcript: "you can
+    cancel up to 48 hours before arrival" contains the word ``cancel``, and
+    triggering on it would demand the agent read back the details of a
+    cancellation that was never requested.
     """
 
     rule_id: str
@@ -157,6 +164,23 @@ def _clean_turns(
     )
 
 
+_COMMITMENT = re.compile(
+    r"\b(i(?:'ve| have) (?:booked|reserved|confirmed|cancelled|refunded)"
+    r"|(?:you(?:'re| are) )?(?:all )?(?:booked|confirmed)"
+    r"|your (?:booking|reservation))\b",
+    re.IGNORECASE,
+)
+
+
+def _trigger_text(log: CallLog) -> str:
+    """What the caller asked for, plus any turn where the agent committed."""
+    return "\n".join(
+        turn.text
+        for turn in log.turns
+        if turn.speaker is not LogSpeaker.AGENT or _COMMITMENT.search(turn.text)
+    )
+
+
 def _required_behaviours(
     logs: Sequence[CallLog], behaviours: Sequence[RequiredBehaviour], rubric: Rubric
 ) -> tuple[Metric, tuple[Finding, ...]]:
@@ -165,7 +189,7 @@ def _required_behaviours(
     findings: list[Finding] = []
 
     for log in logs:
-        transcript = "\n".join(t.text for t in log.turns)
+        transcript = _trigger_text(log)
         agent_text = "\n".join(t.text for t in log.agent_turns)
         for behaviour in behaviours:
             if not behaviour.triggered(transcript):

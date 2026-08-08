@@ -1,0 +1,54 @@
+{
+  "conversation_id": "slow-00",
+  "agent_id": "marina-bay",
+  "outcome": "enquiry_only",
+  "metadata": {
+    "start_time_unix_secs": 1778649600,
+    "call_duration_secs": 53,
+    "termination_reason": "caller_hung_up"
+  },
+  "transcript": [
+    {
+      "role": "user",
+      "message": "Hello?",
+      "time_in_call_secs": 0,
+      "duration_secs": 1.0
+    },
+    {
+      "role": "agent",
+      "message": "Good afternoon, you're through to the automated assistant at Marina Bay Hotel Dubai. How can I help?",
+      "time_in_call_secs": 9.0,
+      "duration_secs": 5.0
+    },
+    {
+      "role": "user",
+      "message": "A deluxe room, how much?",
+      "time_in_call_secs": 15.0,
+      "duration_secs": 2.0
+    },
+    {
+      "role": "agent",
+      "message": "A deluxe room is AED 450.00 per night.",
+      "time_in_call_secs": 26.0,
+      "duration_secs": 3.5
+    },
+    {
+      "role": "user",
+      "message": "Okay, and the deposit?",
+      "time_in_call_secs": 31.0,
+      "duration_secs": 1.8
+    },
+    {
+      "role": "agent",
+      "message": "A deposit of AED 150.00 per guest.",
+      "time_in_call_secs": 44.0,
+      "duration_secs": 3.0
+    },
+    {
+      "role": "user",
+      "message": "Right, I'll call back.",
+      "time_in_call_secs": 48.0,
+      "duration_secs": 1.5
+    }
+  ]
+}

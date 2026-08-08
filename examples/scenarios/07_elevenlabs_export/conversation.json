@@ -1,0 +1,64 @@
+{
+  "data": {
+    "conversation_id": "el-7788",
+    "agent_id": "marina-bay",
+    "status": "done",
+    "metadata": {
+      "start_time_unix_secs": 1778649600,
+      "call_duration_secs": 40,
+      "termination_reason": "agent_ended",
+      "cost": 812
+    },
+    "analysis": {
+      "call_successful": "success"
+    },
+    "transcript": [
+      {
+        "role": "user",
+        "message": "Hi there.",
+        "time_in_call_secs": 0,
+        "duration_secs": 1.2
+      },
+      {
+        "role": "agent",
+        "message": "Good afternoon, you're through to the automated assistant at Marina Bay Hotel Dubai. How can I help?",
+        "time_in_call_secs": 1.6,
+        "duration_secs": 4.0,
+        "llm_latency_ms": 420
+      },
+      {
+        "role": "user",
+        "message": "Price of a deluxe room?",
+        "time_in_call_secs": 6.0,
+        "duration_secs": 1.8
+      },
+      {
+        "role": "agent",
+        "message": "A deluxe room is AED 450.00 per night.",
+        "time_in_call_secs": 8.0,
+        "duration_secs": 3.0,
+        "llm_latency_ms": 380
+      },
+      {
+        "role": "user",
+        "message": "Great, book it.",
+        "time_in_call_secs": 11.5,
+        "duration_secs": 1.2
+      },
+      {
+        "role": "agent",
+        "message": "Confirmed. I'll send you a confirmation email. You can cancel up to 48 hours before arrival.",
+        "time_in_call_secs": 13.0,
+        "duration_secs": 5.0,
+        "llm_latency_ms": 510,
+        "tool_calls": [
+          {
+            "tool_name": "create_booking",
+            "params_as_json": {},
+            "ok": true
+          }
+        ]
+      }
+    ]
+  }
+}

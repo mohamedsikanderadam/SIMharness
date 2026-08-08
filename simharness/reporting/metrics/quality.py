@@ -178,6 +178,10 @@ def _re_asks(logs: Sequence[CallLog], rubric: Rubric) -> tuple[Metric, tuple[Fin
             weight=2.0,
             sample_size=len(logs),
             detail={"re_asks": len(findings), "fields_tracked": sorted(_ASK_PATTERNS)},
+            note=(
+                "Counts only details the agent had already asked for. A detail the "
+                "caller volunteered unprompted is not tracked, so this is a floor."
+            ),
         ),
         tuple(findings),
     )

@@ -1,0 +1,32 @@
+{
+  "conversation_id": "noout-00",
+  "metadata": {
+    "start_time_unix_secs": 1778649600
+  },
+  "transcript": [
+    {
+      "role": "user",
+      "message": "What time can I check in?",
+      "time_in_call_secs": 0,
+      "duration_secs": 2.0
+    },
+    {
+      "role": "agent",
+      "message": "Good afternoon, you're through to the automated assistant at Marina Bay Hotel Dubai. How can I help?",
+      "time_in_call_secs": 2.3,
+      "duration_secs": 4.0
+    },
+    {
+      "role": "user",
+      "message": "Check-in time?",
+      "time_in_call_secs": 6.8,
+      "duration_secs": 1.2
+    },
+    {
+      "role": "agent",
+      "message": "Our reception is staffed around the clock.",
+      "time_in_call_secs": 8.2,
+      "duration_secs": 3.0
+    }
+  ]
+}
