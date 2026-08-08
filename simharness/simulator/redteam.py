@@ -1,8 +1,8 @@
 """Red-team caller split into an Analyst and a Speaker.
 
 The Analyst maintains the :class:`~simharness.schemas.Casefile` from the known
-ground truth. The Speaker phrases the next question. The :class:`RedTeamSimulator`
-wraps the two so the package's ``Simulator`` protocol still has one entry point.
+ground truth. The Speaker phrases the next question, including clarification
+follow-ups when a claim looks wrong. The :class:`RedTeamSimulator` wraps the two.
 """
 
 from __future__ import annotations
@@ -31,9 +31,10 @@ class Analyst:
     def update(self, client_text: str) -> None:
         """Update the casefile using the latest client response.
 
-        A target is confirmed if the client said the ground-truth value. It is a
-        discrepancy if the client mentioned the topic but did not say the
-        ground-truth value. The latter is what ``cracked`` means for the red team.
+        A target is confirmed if the client said the ground-truth value. The first
+        time the client mentions the topic but gives a different value, the target
+        is staged for clarification (``pending_clarification``). If the client
+        repeats the same wrong value on the next turn, the case is cracked.
         """
         if not client_text:
             return
@@ -47,15 +48,32 @@ class Analyst:
             if target.field not in text:
                 continue
 
-            if target.true_value.lower() in text:
-                self.casefile.confirmed_facts.append(target.field)
+            if self.casefile.pending_clarification == target.field:
+                # Second statement about the same field.
+                if target.true_value.lower() in text:
+                    self.casefile.confirmed_facts.append(target.field)
+                    self.casefile.pending_clarification = None
+                else:
+                    self.casefile.discrepancies.append(target.field)
+                    self.casefile.cracked = True
+                    self.casefile.pending_clarification = None
             else:
-                self.casefile.discrepancies.append(target.field)
-                self.casefile.cracked = True
+                # First statement about this field.
+                if target.true_value.lower() in text:
+                    self.casefile.confirmed_facts.append(target.field)
+                else:
+                    self.casefile.pending_clarification = target.field
 
     def next_target(self) -> ActiveTarget | None:
-        """Return the first active target not yet settled."""
+        """Return the active target that still needs a question or clarification."""
         asked = set(self.casefile.confirmed_facts) | set(self.casefile.discrepancies)
+
+        # If a clarification is already pending, keep pressing that target.
+        if self.casefile.pending_clarification:
+            for target in self.casefile.active_targets:
+                if target.field == self.casefile.pending_clarification:
+                    return target
+
         for target in self.casefile.active_targets:
             if target.field not in asked:
                 return target
@@ -63,12 +81,18 @@ class Analyst:
 
 
 class Speaker:
-    """Turns an active target into a natural question."""
+    """Turns an active target into a natural question or clarification."""
 
     def phrase(self, target: ActiveTarget | None) -> str:
         if target is None:
             return "I think I have what I need, thank you."
         return _question_for(target)
+
+    def clarify(self, target: ActiveTarget) -> str:
+        return (
+            f"I was told the {target.field} is {target.true_value}. "
+            f"Can you confirm that?"
+        )
 
 
 class RedTeamSimulator:
@@ -98,21 +122,22 @@ class RedTeamSimulator:
                 TerminationReason.PATIENCE_EXHAUSTED,
             )
 
-        client_text = _last_agent_text(context.history)
-        self._analyst.update(client_text)
-
         target = self._analyst.next_target()
         if target is None:
             return _goodbye(
                 state,
                 "I think I have what I need, thank you.",
-                TerminationReason.SATISFIED,
+                TerminationReason.SATIATED,
             )
 
-        question = self._speaker.phrase(target)
+        if self._analyst.casefile.pending_clarification == target.field:
+            question = self._speaker.clarify(target)
+        else:
+            question = self._speaker.phrase(target)
+
         self._analyst.casefile.next_move = question
 
-        if context.turn_index == 0:
+        if context.turn_index == 0 and not self._analyst.casefile.pending_clarification:
             question = f"Hello, I have a few questions. {question}"
 
         return SimulatorOutput(utterance=question, internal_state=state)

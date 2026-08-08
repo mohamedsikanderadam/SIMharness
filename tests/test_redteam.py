@@ -53,13 +53,21 @@ def test_analyst_marks_confirmed_when_client_says_truth() -> None:
     assert not analyst.casefile.cracked
 
 
-def test_analyst_marks_discrepancy_when_client_lies() -> None:
+def test_analyst_stages_clarification_before_crack() -> None:
+    """A wrong first answer stages clarification, not an immediate crack."""
     analyst = Analyst(_sample_business())
     analyst.update("The deposit is £20.00 per person.")
 
+    assert analyst.casefile.pending_clarification == "deposit"
+    assert "deposit" not in analyst.casefile.discrepancies
+    assert not analyst.casefile.cracked
+
+    # Client repeats the same wrong value on the clarification turn.
+    analyst.update("I said the deposit is £20.00 per person.")
+
     assert "deposit" in analyst.casefile.discrepancies
     assert analyst.casefile.cracked
-    assert "deposit" not in analyst.casefile.confirmed_facts
+    assert analyst.casefile.pending_clarification is None
 
 
 def test_speaker_phrases_question_for_active_target() -> None:
@@ -76,6 +84,18 @@ def test_speaker_phrases_goodbye_when_no_target() -> None:
     speaker = SpeakerClass()
     text = speaker.phrase(None)
     assert "thank you" in text.lower()
+
+
+def test_speaker_clarifies_pending_target() -> None:
+    analyst = Analyst(_sample_business())
+    speaker = SpeakerClass()
+    target = analyst.next_target()
+    assert target is not None
+
+    text = speaker.clarify(target)
+    assert target.field in text.lower()
+    assert target.true_value in text
+    assert "confirm" in text.lower()
 
 
 def test_analyst_to_speaker_handoff_skips_confirmed_target() -> None:
@@ -120,15 +140,34 @@ def test_speaker_to_analyst_handoff_via_red_team_simulator() -> None:
     )
     client_response = client.respond(request).text
 
-    # The simulator sees the client response on the next turn and updates the Casefile.
+    # The simulator sees the client response and stages a clarification.
     red_team.observe(client_response)
-    assert "deposit" in red_team.casefile.discrepancies
-    assert red_team.casefile.cracked
+    assert red_team.casefile.pending_clarification == "deposit"
+    assert "deposit" not in red_team.casefile.discrepancies
+    assert not red_team.casefile.cracked
 
-    # The next simulator question should now skip the cracked deposit.
+    # The next turn asks a clarification.
     context = _context_for_turn(red_team, turn_index=2)
     output = red_team.generate(context)
-    assert "deposit" not in output.utterance.lower()
+    assert "£15.00" in output.utterance
+    assert "confirm" in output.utterance.lower()
+
+    # Client repeats the false value on the clarification.
+    request2 = AgentRequest(
+        episode_id="test-0",
+        turn_index=3,
+        history=(
+            AgentTurnView(speaker=SpeakerEnum.USER, text="What is your deposit policy?"),
+            AgentTurnView(speaker=SpeakerEnum.AGENT, text=client_response),
+            AgentTurnView(speaker=SpeakerEnum.USER, text=output.utterance),
+        ),
+        tools=(),
+        brief="",
+    )
+    client_response2 = client.respond(request2).text
+    red_team.observe(client_response2)
+    assert "deposit" in red_team.casefile.discrepancies
+    assert red_team.casefile.cracked
 
 
 def test_run_red_team_episode_detects_false_deposit() -> None:

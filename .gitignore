@@ -11,4 +11,5 @@ cassettes/
 .env
 secrets.env
 audio_out/
+audio_conversation/
 *.mp3

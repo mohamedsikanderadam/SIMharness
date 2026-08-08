@@ -1061,6 +1061,7 @@ class Casefile(Mutable):
 
     confirmed_facts: list[str] = Field(default_factory=list)
     discrepancies: list[str] = Field(default_factory=list)
+    pending_clarification: str | None = None
     active_targets: list[ActiveTarget] = Field(default_factory=list)
     next_move: str | None = None
     cracked: bool = False
