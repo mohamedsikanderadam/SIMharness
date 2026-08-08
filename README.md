@@ -91,15 +91,31 @@ ANTHROPIC_API_KEY=...   # only if you use the optional LLM judge
 The scripts load `secrets.env` automatically. If you are not running voice or
 Context.dev, the deterministic scripts do not need any keys.
 
+### Run the live fact-check demo
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/demo_live_voice.py --voice
+```
+
+A caller phones a hotel knowing none of its policies. The agent states a
+cancellation deadline, the caller fetches that policy from the hotel's live page
+through Context.dev, quotes the site back, and records a false claim if the agent
+repeats itself. Drop `--voice` for text only; add `--honest` for the control run,
+where a truthful agent is confirmed rather than accused.
+
+Needs `CONTEXT_DEV_API_KEY`, and `ELEVENLABS_API_KEY` for `--voice`.
+
 ### Run a red-team voice demo
 
 ```bash
-PYTHONPATH=. .venv/bin/python scripts/run_voice_conversation.py
+PYTHONPATH=. .venv/bin/python scripts/run_voice_conversation.py            # writes MP3s
+PYTHONPATH=. .venv/bin/python scripts/run_voice_conversation_realtime.py   # streamed
 ```
 
-This TTSs the red-team side, STTs the client side, and ends when a discrepancy
-is cracked or patience runs out. Audio files land in `audio_conversation/`
-(ignored by git).
+Both TTS the red-team side and STT the client side, ending when a discrepancy is
+cracked or patience runs out. The first writes each turn to `audio_conversation/`
+(ignored by git); the second streams PCM to the speakers and to Scribe over a
+websocket, with no files in between.
 
 ### Run a production audit
 

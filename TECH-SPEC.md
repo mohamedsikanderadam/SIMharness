@@ -51,6 +51,17 @@ targets, and the **Speaker** phrases the next question. If the client gives a
 value that does not match the fact sheet, the caller asks a clarifying follow-up
 before marking the target as cracked.
 
+Comparison is by *value*, not by string: each claim is parsed into money, a clock
+time, a duration or a count, and compared numerically, so "twenty pounds" and
+"£20.00" are one answer and a rephrased lie is still a lie. A claim that raises a
+topic without stating a readable value is neither confirmed nor contradicted.
+
+Ground truth does not have to be known before the call. `Analyst.track()` accepts
+a fact discovered mid-conversation, which is what `scripts/demo_live_voice.py`
+uses: it hears a claim, fetches that one policy from the live page, and checks
+the claim against it. You rarely know which policy an agent will get wrong until
+it says something, so there is often nothing to prefetch.
+
 The audit side is a four-stage pipeline: **ingest** loads call logs or
 transcribes recordings, **factsheet** builds the ground-truth fact sheet,
 **analyse** grades every call, and **render** writes `report.html` and
@@ -67,7 +78,11 @@ technical team and CI.
 - **Context.dev.** A fact sheet is only useful if it matches what the business
   actually publishes. Context.dev turns a real URL (the hotel's website, the
   restaurant's booking page) into structured facts, so the audit is checking the
-  agent against the same public information the customer sees.
+  agent against the same public information the customer sees. It is used two
+  ways: `extract_hotel_facts` builds a whole fact sheet up front, and
+  `extract_policy` reads one stated policy verbatim mid-call, to settle a claim
+  the caller was not expecting. A cached fact sheet cannot catch a stale agent —
+  it just becomes a second stale copy — so the mid-call path never caches.
 - **Anthropic (optional).** Subjective or fuzzy checks (tone, script phrasing
   nuance) are routed through an `AnthropicJudge` only when explicitly requested.
   All core checks — facts, script adherence, compliance, timing — are
@@ -98,8 +113,15 @@ report, and a full test suite from a clean machine in a few commands.
 
 ## 05 Extensibility — what v2 looks like
 
-- **Real-time voice.** The current demo is turn-by-turn with saved files. v2
-  streams audio chunks directly through `VoiceClient` for a live-sounding call.
+- **Prose claims.** The comparator reads values, so it is blind to claims with no
+  number in them — negation, scope, conditions ("free cancellation *if you booked
+  direct*"). It reports those as unverifiable rather than guessing. The fix is a
+  second comparator for text, kept separate so a rule-based verdict stays
+  distinguishable from a model's judgement.
+- **A client we do not control.** The agent under test is
+  `SimulatedClientAgent`, and its wrong belief is injected by the harness. The
+  ground truth and the comparison are real; the target is not yet a third-party
+  agent. That needs an `Agent` adapter and nothing else.
 - **LLM-driven red team.** Replace the scripted `Speaker` / `Analyst` with models
   that read the `Casefile` and the transcript. Keep the `Casefile` as the
   handoff boundary so the separation of concerns stays clean.
