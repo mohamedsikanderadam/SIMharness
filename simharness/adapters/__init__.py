@@ -13,6 +13,13 @@ __all__ = [
 ]
 
 
+def elevenlabs_agent(*args: object, **kwargs: object) -> Agent:
+    """Lazy factory: importing the package must not require `websockets`."""
+    from simharness.adapters.elevenlabs import ElevenLabsAgent
+
+    return ElevenLabsAgent(*args, **kwargs)  # type: ignore[arg-type]
+
+
 def anthropic_agent(*args: object, **kwargs: object) -> Agent:
     """Lazy factory: importing the package must not require the SDK."""
     from simharness.adapters.llm import AnthropicAgent
