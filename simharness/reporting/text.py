@@ -17,6 +17,7 @@ import re
 from difflib import SequenceMatcher
 
 __all__ = [
+    "digits_for_number_words",
     "durations_hours",
     "is_question",
     "mentions",
@@ -28,6 +29,88 @@ __all__ = [
     "times_of_day",
     "tokens",
 ]
+
+# --------------------------------------------------------------------------- #
+# Spoken numbers
+# --------------------------------------------------------------------------- #
+
+_SMALL: dict[str, int] = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+    "thirty": 30, "forty": 40, "fourty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90,
+}
+_SCALES: dict[str, int] = {"hundred": 100, "thousand": 1000, "million": 1_000_000}
+_NUMBER_WORDS = frozenset(_SMALL) | frozenset(_SCALES) | {"and", "a"}
+
+
+def digits_for_number_words(text: str) -> str:
+    """Rewrite spoken numbers as digits: ``three hundred`` -> ``300``.
+
+    Speech recognition returns what was said, and people say prices out loud.
+    Scribe transcribed a hallucinated rate as "three hundred dirhams", which the
+    money parser could not see at all — so the audit passed a call that had
+    misquoted the price. Everything downstream reads digits, so the cheapest
+    correct fix is to make the digits exist.
+
+    ``and`` and ``a`` are consumed only *inside* a run of number words, so
+    "a deluxe room" is untouched while "a hundred and fifty" is not.
+    """
+    words = text.split()
+    out: list[str] = []
+    run: list[str] = []
+
+    def flush() -> None:
+        while run and run[-1].strip(",.!?;:").lower() in {"and", "a"}:
+            out.append(run.pop())
+        if not run:
+            return
+        value = _value_of(run)
+        if value is None:
+            out.extend(run)
+        else:
+            trailing = run[-1][len(run[-1].rstrip(",.!?;:")) :]
+            out.append(f"{value}{trailing}")
+        run.clear()
+
+    for word in words:
+        bare = word.strip(",.!?;:").lower()
+        if bare in _NUMBER_WORDS and not (bare in {"and", "a"} and not run):
+            run.append(word)
+            continue
+        flush()
+        out.append(word)
+    flush()
+    return " ".join(out)
+
+
+def _value_of(run: list[str]) -> int | None:
+    """Fold a run of number words into an integer, or ``None`` if it is prose.
+
+    Returns ``None`` for a run carrying no actual digit-bearing word, so a
+    stray "and" never becomes ``0``.
+    """
+    total = 0
+    current = 0
+    seen = False
+    for word in run:
+        bare = word.strip(",.!?;:").lower()
+        if bare in {"and", "a"}:
+            continue
+        if bare in _SMALL:
+            current += _SMALL[bare]
+            seen = True
+        elif bare in _SCALES:
+            scale = _SCALES[bare]
+            current = (current or 1) * scale
+            if scale >= 1000:
+                total += current
+                current = 0
+            seen = True
+    return total + current if seen else None
+
 
 _PUNCTUATION = re.compile(r"[^\w\s:.-]+")
 _WHITESPACE = re.compile(r"\s+")
@@ -135,7 +218,7 @@ def money_amounts(text: str) -> list[int]:
     and bury the report in noise.
     """
     amounts: list[int] = []
-    normalised = _THOUSANDS.sub("", text)
+    normalised = _THOUSANDS.sub("", digits_for_number_words(text))
     for match in _MONEY.finditer(normalised):
         symbol = (match.group("symbol") or "").strip().lower()
         suffix = (match.group("suffix") or "").strip().lower()
@@ -153,7 +236,7 @@ def money_amounts(text: str) -> list[int]:
 def durations_hours(text: str) -> list[float]:
     """Durations expressed in hours. ``2 days`` becomes ``48``."""
     found: list[float] = []
-    for match in _DURATION.finditer(text):
+    for match in _DURATION.finditer(digits_for_number_words(text)):
         unit = match.group("unit").lower()
         multiplier = _UNIT_HOURS.get(unit)
         if multiplier is None:
@@ -169,7 +252,7 @@ def times_of_day(text: str) -> list[str]:
     ``:minute`` is present, for the same reason bare numbers are not money.
     """
     found: list[str] = []
-    for match in _TIME.finditer(text):
+    for match in _TIME.finditer(digits_for_number_words(text)):
         minute_group = match.group("minute")
         meridiem = (match.group("meridiem") or "").lower()
         if minute_group is None and not meridiem:
@@ -189,7 +272,8 @@ def times_of_day(text: str) -> list[str]:
 
 
 def numbers(text: str) -> list[float]:
-    return [float(m.group()) for m in _NUMBER.finditer(_THOUSANDS.sub("", text))]
+    cleaned = _THOUSANDS.sub("", digits_for_number_words(text))
+    return [float(m.group()) for m in _NUMBER.finditer(cleaned)]
 
 
 _CARD = re.compile(r"\b(?:\d[ -]?){13,19}\b")

@@ -40,6 +40,7 @@ from simharness.reporting.schemas import (
     Severity,
 )
 from simharness.reporting.text import (
+    digits_for_number_words,
     durations_hours,
     is_question,
     mentions,
@@ -128,9 +129,20 @@ _CONFIRMATION = re.compile(
     re.IGNORECASE,
 )
 
+# "one" has already become "1" by the time this runs, so both spellings appear.
+_PEOPLE = (
+    r"(?:people|persons?|guests?|adults?|pax|heads?"
+    r"|in (?:one|1) (?:room|booking|party|group))"
+)
+_LIMIT = r"(?:up to|a maximum of|maximum(?: of)?|max(?: of)?|no more than)"
+
 _CAPACITY = re.compile(
-    r"\b(?:up to|maximum(?: of)?|max(?: of)?|no more than|accommodate|seat|cater for|"
-    r"party of|group of)\s+(?P<count>\d{1,3})\b",
+    # A verb of capacity states a limit on its own: "we can accommodate 8".
+    r"\b(?:accommodate|seat|sleeps?|cater for|party of|group of)\s+"
+    rf"(?:{_LIMIT}\s+)?(?P<count>\d{{1,3}})\b"
+    # A bare limit phrase does not - "cancel up to 48 hours" is not a capacity -
+    # so it has to be talking about people.
+    rf"|\b{_LIMIT}\s+(?P<weak>\d{{1,3}})\s*{_PEOPLE}",
     re.IGNORECASE,
 )
 
@@ -180,7 +192,7 @@ def audit_claims(logs: Sequence[CallLog], sheet: FactSheet) -> ClaimAudit:
                 continue
 
             for fact in checkable:
-                if not mentions(turn.text, _needles(fact)):
+                if not _is_mentioned(fact, turn.text):
                     continue
                 verdict = _adjudicate(fact, turn.text)
                 if verdict is None:
@@ -210,6 +222,19 @@ def audit_claims(logs: Sequence[CallLog], sheet: FactSheet) -> ClaimAudit:
 
 def _needles(fact: BusinessFact) -> tuple[str, ...]:
     return (*fact.aliases, fact.label)
+
+
+def _is_mentioned(fact: BusinessFact, text: str) -> bool:
+    """Whether this turn is talking about ``fact`` at all.
+
+    Aliases catch the usual phrasing, but a capacity limit is routinely stated
+    without any of them - "we can accommodate up to 10 in one booking" names no
+    alias and is nonetheless a claim about the maximum party size. The capacity
+    pattern is specific enough to stand in as the mention.
+    """
+    if mentions(text, _needles(fact)):
+        return True
+    return fact.value.isdigit() and _capacity_claim(text) is not None
 
 
 def _adjudicate(fact: BusinessFact, text: str) -> bool | None:
@@ -249,8 +274,10 @@ def _capacity_claim(text: str) -> int | None:
     Only a number introduced by an explicit limit cue is treated as a claim about
     the limit.
     """
-    match = _CAPACITY.search(text)
-    return int(match.group("count")) if match else None
+    match = _CAPACITY.search(digits_for_number_words(text))
+    if match is None:
+        return None
+    return int(match.group("count") or match.group("weak"))
 
 
 def _asserts_without_records(log: CallLog, turn: CallTurn) -> bool:

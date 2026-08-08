@@ -18,7 +18,11 @@ from simharness.reporting.factsheet import build_fact_sheet
 from simharness.reporting.grading import RUBRIC_V1, grade_report, letter_for, score_category
 from simharness.reporting.ingest import parse_any, parse_text_transcript
 from simharness.reporting.judge import CallVerdict, judge_calls
-from simharness.reporting.metrics.compliance import audit_claims, compliance_metrics
+from simharness.reporting.metrics.compliance import (
+    _capacity_claim,
+    audit_claims,
+    compliance_metrics,
+)
 from simharness.reporting.render import render_html
 from simharness.reporting.schemas import (
     CallLog,
@@ -36,6 +40,7 @@ from simharness.reporting.schemas import (
     Severity,
     ToolInvocation,
 )
+from simharness.reporting.text import digits_for_number_words
 from simharness.reporting.transcribe import (
     TranscribedWord,
     call_log_from_words,
@@ -602,3 +607,82 @@ def test_recordings_are_transcribed_in_name_order_with_the_stem_as_call_id(
 
     logs = transcribe_recordings(tmp_path, Fake())
     assert [log.call_id for log in logs] == ["call-a", "call-b"]
+
+
+# --------------------------------------------------------------------------- #
+# Spoken numbers
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("spoken", "expected"),
+    [
+        ("three hundred dirhams", "300 dirhams"),
+        ("a hundred and fifty dirhams", "a 150 dirhams"),
+        ("four thousand five hundred", "4500"),
+        ("twenty four hours", "24 hours"),
+        ("up to ten", "up to 10"),
+        # Prose that happens to contain number words is left alone.
+        ("a deluxe room and a suite", "a deluxe room and a suite"),
+        ("AED 450.00 per night", "AED 450.00 per night"),
+    ],
+)
+def test_spoken_numbers_become_digits(spoken: str, expected: str) -> None:
+    assert digits_for_number_words(spoken) == expected
+
+
+def test_a_price_said_aloud_is_checked_like_a_price_written_down() -> None:
+    """Speech recognition returns what was said. Scribe transcribed a wrong rate
+    as "three hundred dirhams", which the money parser could not see at all - so
+    the audit passed a call that had misquoted the price."""
+    log = CallLog(
+        call_id="spoken",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text="What is a deluxe room?"),
+            CallTurn(
+                index=1,
+                speaker=LogSpeaker.AGENT,
+                text="A deluxe room is three hundred dirhams a night.",
+            ),
+        ),
+    )
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    wrong = [f for f in report.findings if f.kind is FindingKind.WRONG_FACT]
+    assert len(wrong) == 1
+    assert wrong[0].expected == "AED 450.00"
+    assert wrong[0].severity is Severity.CRITICAL
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("we can accommodate up to ten in one booking", 10),
+        ("we can seat 8", 8),
+        ("maximum of 4 guests", 4),
+        ("a party of six", 6),
+        # A limit phrase alone is not a capacity claim.
+        ("you can cancel up to 48 hours before arrival", None),
+        ("a deposit of up to 150 dirhams", None),
+    ],
+)
+def test_only_limits_on_people_are_read_as_capacity(text: str, expected: int | None) -> None:
+    assert _capacity_claim(text) == expected
+
+
+def test_a_capacity_claim_is_audited_even_without_a_fact_alias() -> None:
+    """"We can accommodate up to 10" names no alias for max party size and is
+    nonetheless a claim about it."""
+    log = CallLog(
+        call_id="capacity",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text="We are seven."),
+            CallTurn(
+                index=1,
+                speaker=LogSpeaker.AGENT,
+                text="No problem, we can accommodate up to ten in one booking.",
+            ),
+        ),
+    )
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    wrong = [f for f in report.findings if f.kind is FindingKind.WRONG_FACT]
+    assert [f.expected for f in wrong] == ["4"]

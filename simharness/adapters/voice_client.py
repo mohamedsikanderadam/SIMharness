@@ -11,12 +11,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from simharness.adapters.base import Agent
-from simharness.schemas import AgentRequest, AgentTurnView, Speaker as SpeakerEnum
+from simharness.schemas import AgentRequest, AgentTurnView
+from simharness.schemas import Speaker as SpeakerEnum
 
 if TYPE_CHECKING:
     from elevenlabs.client import ElevenLabs
 
 __all__ = ["VoiceClient"]
+
+_NOT_INSTALLED = 'elevenlabs is not installed. Run: uv pip install -e ".[voice]"'
 
 
 class VoiceClient:
@@ -42,9 +45,11 @@ class VoiceClient:
         try:
             from elevenlabs import save
         except ModuleNotFoundError as exc:  # pragma: no cover
-            raise RuntimeError("elevenlabs package is not installed. Run: pip install elevenlabs") from exc
+            raise RuntimeError(_NOT_INSTALLED) from exc
 
-        audio = client.text_to_speech.convert(text=text, voice_id=self._voice_id, model_id=self._tts_model_id)
+        audio = client.text_to_speech.convert(
+            text=text, voice_id=self._voice_id, model_id=self._tts_model_id
+        )
         save(audio, str(output_path))
         return output_path
 
@@ -59,9 +64,15 @@ class VoiceClient:
                 model_id=self._stt_model_id,
                 language_code="eng",
             )
-        return result.text
+        return str(result.text)
 
-    def voice_respond(self, audio_path: str | Path, output_path: str | Path, *, episode_id: str = "voice-0") -> tuple[str, Path]:
+    def voice_respond(
+        self,
+        audio_path: str | Path,
+        output_path: str | Path,
+        *,
+        episode_id: str = "voice-0",
+    ) -> tuple[str, Path]:
         """Listen, run the wrapped text agent, and speak the response."""
         if self._agent is None:
             raise RuntimeError("VoiceClient was not initialised with an agent")
@@ -70,7 +81,7 @@ class VoiceClient:
         request = AgentRequest(
             episode_id=episode_id,
             turn_index=0,
-            history=(),
+            history=(AgentTurnView(speaker=SpeakerEnum.USER, text=user_text),),
             tools=(),
             brief="",
         )
@@ -81,8 +92,6 @@ class VoiceClient:
         """Convenience: run the wrapped text agent on a plain user utterance."""
         if self._agent is None:
             raise RuntimeError("VoiceClient was not initialised with an agent")
-
-        from simharness.schemas import Speaker as SpeakerEnum
 
         request = AgentRequest(
             episode_id=episode_id,
@@ -95,7 +104,7 @@ class VoiceClient:
         )
         return self._agent.respond(request).text
 
-    def _elevenlabs_client(self) -> "ElevenLabs":
+    def _elevenlabs_client(self) -> ElevenLabs:
         api_key = os.environ.get("ELEVENLABS_API_KEY")
         if not api_key:
             raise RuntimeError("ELEVENLABS_API_KEY is not set in the environment or .env file.")
@@ -103,6 +112,6 @@ class VoiceClient:
         try:
             from elevenlabs.client import ElevenLabs
         except ModuleNotFoundError as exc:  # pragma: no cover
-            raise RuntimeError("elevenlabs package is not installed. Run: pip install elevenlabs") from exc
+            raise RuntimeError(_NOT_INSTALLED) from exc
 
         return ElevenLabs(api_key=api_key)
