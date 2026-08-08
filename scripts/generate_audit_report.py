@@ -21,16 +21,24 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import TypeVar
 
 from simharness.reporting.analyse import analyse_calls
 from simharness.reporting.factsheet import ContextDevFactProvider, build_fact_sheet
 from simharness.reporting.grading import RUBRIC_V1, Rubric
 from simharness.reporting.ingest import load_call_logs
 from simharness.reporting.judge import AnthropicJudge, Judge
+from simharness.reporting.metrics.adherence import (
+    DEFAULT_REQUIRED_BEHAVIOURS,
+    RequiredBehaviour,
+)
+from simharness.reporting.metrics.compliance import DEFAULT_POLICY_RULES, PolicyRule
 from simharness.reporting.render import render_html
 from simharness.reporting.schemas import AuditReport
 from simharness.schemas import BusinessConfig
 from simharness.world.factsheet import load_facts, world_from_facts
+
+_PackT = TypeVar("_PackT", PolicyRule, RequiredBehaviour)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,6 +68,8 @@ def main(argv: list[str] | None = None) -> int:
         sheet,
         rubric=_rubric(args.rubric),
         judge=_judge(args),
+        policy_rules=_load_pack(args.policy_rules, PolicyRule, DEFAULT_POLICY_RULES),
+        behaviours=_load_pack(args.script, RequiredBehaviour, DEFAULT_REQUIRED_BEHAVIOURS),
     )
 
     _write(report, args.out)
@@ -92,6 +102,16 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="Fact key the audit needs even if the config lacks it. Repeatable.",
     )
     parser.add_argument(
+        "--policy-rules",
+        help="JSON list of PolicyRule objects, replacing the built-in pack. Use this to "
+        "audit against the business's own do-not-say list.",
+    )
+    parser.add_argument(
+        "--script",
+        help="JSON list of RequiredBehaviour objects, replacing the built-in pack. Use "
+        "this to audit against a call centre's own script or SOP.",
+    )
+    parser.add_argument(
         "--fail-under",
         type=float,
         default=0.0,
@@ -110,6 +130,23 @@ def _business_config(path: str) -> BusinessConfig:
     if "policies" in payload and isinstance(payload.get("opening_hours"), list):
         return BusinessConfig.model_validate(payload)
     return world_from_facts(load_facts(path)).business
+
+
+def _load_pack(
+    path: str | None, model: type[_PackT], default: tuple[_PackT, ...]
+) -> tuple[_PackT, ...]:
+    """Load a rule or script pack, or keep the built-in one.
+
+    The built-in packs encode what almost every business wants. What a specific
+    business, or a call centre auditing against a client's SOP, actually needs
+    is their own list - so the packs are data, and this is how they arrive.
+    """
+    if not path:
+        return default
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise ValueError(f"{path}: expected a JSON list of rules")
+    return tuple(model.model_validate(entry) for entry in payload)
 
 
 def _rubric(path: str | None) -> Rubric:

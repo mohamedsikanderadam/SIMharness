@@ -21,8 +21,15 @@ import pytest
 from simharness.reporting.analyse import analyse_calls
 from simharness.reporting.factsheet import build_fact_sheet
 from simharness.reporting.ingest import load_call_logs
+from simharness.reporting.metrics.adherence import RequiredBehaviour
 from simharness.reporting.render import render_html
-from simharness.reporting.schemas import AuditReport, Metric, MetricBasis, Severity
+from simharness.reporting.schemas import (
+    AuditReport,
+    FindingKind,
+    Metric,
+    MetricBasis,
+    Severity,
+)
 from simharness.schemas import BusinessConfig
 from simharness.world.factsheet import load_facts, world_from_facts
 
@@ -151,3 +158,52 @@ def test_ungrounded_confirmation_needs_tool_records_to_be_flagged() -> None:
     kinds = [f.kind.value for f in report.findings]
     assert "ungrounded_claim" in kinds
     assert "error" in kinds
+
+
+# --------------------------------------------------------------------------- #
+# A human contact centre, audited against the client's own script
+# --------------------------------------------------------------------------- #
+
+CALL_CENTRE = EXAMPLES / "callcentre"
+
+
+def test_human_agent_labels_are_recognised() -> None:
+    """A BPO transcript says "Representative:", not "Agent:". Failing to map it
+    would file every human utterance under SYSTEM and audit nothing."""
+    logs = load_call_logs(CALL_CENTRE / "calls")
+    assert len(logs) == 2
+    assert all(log.agent_turns and log.customer_turns for log in logs)
+
+
+def test_a_client_script_replaces_the_built_in_behaviours() -> None:
+    """The point of the BPO case: the audit checks *their* SOP, not ours."""
+    script = tuple(
+        RequiredBehaviour.model_validate(entry)
+        for entry in json.loads((CALL_CENTRE / "script.json").read_text())
+    )
+    logs = load_call_logs(CALL_CENTRE / "calls")
+    report = analyse_calls(logs, build_fact_sheet(business()), behaviours=script)
+
+    breached = {
+        (f.call_id, f.fact_key)
+        for f in report.findings
+        if f.kind is FindingKind.PROMPT_VIOLATION
+    }
+    # The compliant rep is clean on script; the other misses three of the four.
+    assert not any(call_id == "agent-7781" for call_id, _ in breached)
+    assert {key for call_id, key in breached if call_id == "agent-4412"} >= {
+        "identity_check",
+        "call_recording_notice",
+        "close_with_anything_else",
+    }
+
+
+def test_a_human_stating_the_wrong_policy_is_still_a_critical() -> None:
+    """Fact checking does not care whether the speaker was a person."""
+    logs = load_call_logs(CALL_CENTRE / "calls")
+    report = analyse_calls(logs, build_fact_sheet(business()))
+    critical = [f for f in report.findings if f.severity is Severity.CRITICAL]
+    assert [(f.call_id, f.fact_key) for f in critical] == [
+        ("agent-4412", "cancellation_window")
+    ]
+    assert "24 hours" in critical[0].quote
