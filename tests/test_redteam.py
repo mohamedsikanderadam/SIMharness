@@ -98,6 +98,35 @@ def test_analyst_confirms_every_field_of_a_truthful_client() -> None:
     assert analyst.next_target() is None
 
 
+def test_analyst_reads_scraped_deadlines_written_as_am_pm() -> None:
+    """Scraped policy text says "2pm", not "14:00", and midnight is a real answer."""
+    analyst = Analyst(_sample_business())
+    analyst.track("cancellation deadline", "cancel free up until 2pm the day before arrival")
+
+    analyst.update("You can cancel right up until 2pm the day before you arrive.")
+    assert "cancellation deadline" in analyst.casefile.confirmed_facts
+
+    other = Analyst(_sample_business())
+    other.track("cancellation deadline", "cancel free up until 2pm the day before arrival")
+    other.update("You can cancel free up until midnight on the day of arrival.")
+    assert other.casefile.pending_clarification == "cancellation deadline"
+
+
+def test_analyst_tracks_a_fact_it_did_not_start_with() -> None:
+    """Ground truth found mid-call becomes an ordinary target, and is deduplicated."""
+    analyst = Analyst(_sample_business())
+    before = len(analyst.casefile.active_targets)
+
+    analyst.track("breakfast", "£12.00")
+    analyst.track("breakfast", "£99.00")
+
+    assert len(analyst.casefile.active_targets) == before + 1
+    assert analyst.casefile.active_targets[-1].true_value == "£12.00"
+
+    analyst.update("Breakfast is £99.00 a head.")
+    assert analyst.casefile.pending_clarification == "breakfast"
+
+
 def test_analyst_stages_clarification_before_crack() -> None:
     """A wrong first answer stages clarification, not an immediate crack."""
     analyst = Analyst(_sample_business())

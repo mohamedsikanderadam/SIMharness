@@ -7,7 +7,7 @@ can enrich a business fact sheet without importing an SDK.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -39,6 +39,34 @@ class ContextDevClient:
             json={"type": "by_domain", "domain": domain},
         )
         return _unwrap(resp)
+
+    def extract_policy(self, *, url: str, topic: str) -> str | None:
+        """Read one stated policy off a page, verbatim.
+
+        Narrower than :meth:`extract_hotel_facts` on purpose: this runs mid-call
+        to settle a single claim, so it asks for one field and returns the
+        page's own wording rather than a normalised value. ``None`` means the
+        page does not state it, which is not the same as the claim being false.
+        """
+        resp = self._client.post(
+            "/web/extract",
+            json={
+                "url": url,
+                "schema": {
+                    "type": "object",
+                    "properties": {topic: {"type": ["string", "null"]}},
+                    "additionalProperties": False,
+                },
+                "instructions": (
+                    f"Quote what this page states about {topic}, verbatim and in one "
+                    "sentence. Return null if the page does not state it. Do not infer."
+                ),
+                "maxDepth": 0,
+                "maxPages": 1,
+            },
+        )
+        value = _unwrap(resp).get("data", {}).get(topic)
+        return str(value) if value else None
 
     def extract_hotel_facts(self, *, url: str, fact_check: bool = False) -> dict[str, Any]:
         """Crawl a hotel page and extract a structured fact sheet."""
@@ -84,4 +112,4 @@ class ContextDevClient:
 def _unwrap(resp: httpx.Response) -> dict[str, Any]:
     if resp.status_code >= 400:
         raise RuntimeError(f"Context.dev error {resp.status_code}: {resp.text}")
-    return resp.json()
+    return cast(dict[str, Any], resp.json())

@@ -81,8 +81,24 @@ def _hours(text: str) -> int | None:
     return None
 
 
+#: ``2pm``, ``2:30 pm``, ``14:00``. Scraped policy text uses the first two forms
+#: far more often than the third, and a deadline of "2pm" versus "midnight" is
+#: exactly the kind of difference this is here to catch.
+_CLOCK = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?|(\d{1,2}):(\d{2})", re.IGNORECASE)
+_NAMED_HOURS = {"midnight": "00:00", "noon": "12:00", "midday": "12:00"}
+
+
 def _times(text: str) -> tuple[str, ...] | None:
-    return tuple(re.findall(r"\d{1,2}:\d{2}", text)) or None
+    found = []
+    for match in _CLOCK.finditer(text):
+        if meridiem := match.group(3):
+            hour = int(match.group(1)) % 12 + (12 if meridiem.lower() == "p" else 0)
+            found.append(f"{hour:02d}:{match.group(2) or '00'}")
+        else:
+            found.append(f"{int(match.group(4)):02d}:{match.group(5)}")
+
+    found += [clock for name, clock in _NAMED_HOURS.items() if name in text.lower()]
+    return tuple(found) or None
 
 
 def _count(text: str) -> int | None:
@@ -92,7 +108,15 @@ def _count(text: str) -> int | None:
 
 def _mentions(client_text: str, field: str) -> bool:
     lowered = client_text.lower()
-    return field in lowered or any(a in lowered for a in _ALIASES.get(field, ()))
+    if field in lowered:
+        return True
+    if aliases := _ALIASES.get(field):
+        return any(alias in lowered for alias in aliases)
+    # A field discovered mid-call has no alias list of its own, so fall back to
+    # its words, borrowing the aliases of any word we already know.
+    return any(
+        alias in lowered for word in field.split() for alias in _ALIASES.get(word, (word,))
+    )
 
 
 def _claim_matches(client_text: str, true_value: str) -> bool | None:
@@ -107,8 +131,10 @@ def _claim_matches(client_text: str, true_value: str) -> bool | None:
 
     if "£" in truth:
         return _compare(_money(said), _money(truth))
-    if ":" in truth:
-        return _compare(_times(said), _times(truth))
+    # Times are tried before durations because scraped policy text says things
+    # like "2pm the day before", where "day" would otherwise win and read as 24h.
+    if (expected := _times(truth)) is not None:
+        return _compare(_times(said), expected)
     if "hour" in truth or "day" in truth:
         return _compare(_hours(said), _hours(truth))
     return _compare(_count(said), _count(truth))
@@ -154,6 +180,19 @@ class Analyst:
                 self.casefile.pending_clarification = None
             else:
                 self.casefile.pending_clarification = target.field
+
+    def track(self, field: str, true_value: str, suspicion: str = "high") -> None:
+        """Start checking a fact the Analyst did not open the call knowing.
+
+        Ground truth is not always available up front — some of it only exists
+        once you know which question to ask. A fact looked up mid-call is worth
+        no less than one held from the start, so it becomes an ordinary target.
+        """
+        if any(t.field == field for t in self.casefile.active_targets):
+            return
+        self.casefile.active_targets.append(
+            ActiveTarget(field=field, true_value=true_value, suspicion_level=suspicion)
+        )
 
     def next_target(self) -> ActiveTarget | None:
         """Return the active target that still needs a question or clarification."""
