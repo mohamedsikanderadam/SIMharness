@@ -1,7 +1,7 @@
 [project]
 name = "simharness"
 version = "0.1.0"
-description = "Persona-driven conversation simulator with verifiable rewards. One harness, two consumers: eval scorecards and multi-turn RL."
+description = "SIMharness: evaluation tool for voice agents. Simulated customers, a noisy channel, and a verifiable reward — no LLM judge in the primary path."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
