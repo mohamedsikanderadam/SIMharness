@@ -27,8 +27,9 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
+from simharness.reporting.text import redact_card_numbers
 from simharness.schemas import Frozen, JSONObject, MinorUnits
 
 # --------------------------------------------------------------------------- #
@@ -251,6 +252,15 @@ class Finding(Frozen):
     fact_key: str = ""
     basis: str = "measured"
     at: datetime | None = None
+
+    @field_validator("quote", "explanation")
+    @classmethod
+    def _mask_card_numbers(cls, value: str) -> str:
+        """The report flags agents for reading card numbers aloud; it must not
+        then become the second place that number is written down. Masked here,
+        at the one place every finding passes through, rather than at each
+        renderer - the JSON export is as exposed as the webpage."""
+        return redact_card_numbers(value)
 
 
 # --------------------------------------------------------------------------- #

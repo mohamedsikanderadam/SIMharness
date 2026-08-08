@@ -404,3 +404,69 @@ def test_outcomes_are_never_inferred_from_the_transcript() -> None:
         if m.key == "conversion_rate"
     )
     assert conversion.basis is MetricBasis.UNAVAILABLE
+
+
+def test_a_card_number_is_masked_everywhere_a_finding_can_reach() -> None:
+    """The report flags the agent for reciting a card number; writing it out
+    again in the artefact would repeat the offence in a file the business
+    emails around."""
+    finding = Finding(
+        call_id="c1",
+        turn_index=1,
+        kind=FindingKind.PROMPT_VIOLATION,
+        severity=Severity.CRITICAL,
+        quote="Let me read that back: 4111 1111 1111 1111.",
+        explanation="Recited a card number.",
+    )
+    assert finding.quote == "Let me read that back: 4111 ******** 1111."
+    assert "4111 1111" not in finding.model_dump_json()
+
+
+def test_masking_leaves_ordinary_numbers_alone() -> None:
+    finding = Finding(
+        call_id="c1",
+        turn_index=1,
+        kind=FindingKind.WRONG_FACT,
+        severity=Severity.CRITICAL,
+        quote="A deluxe room is AED 450.00 and reference 12345678 applies.",
+        explanation="Wrong price.",
+    )
+    assert "450.00" in finding.quote
+    assert "12345678" in finding.quote
+
+
+def test_a_file_that_looks_like_json_but_is_broken_is_refused() -> None:
+    """Falling back to the transcript parser produced a zero-turn call that was
+    then graded, handing the business a letter grade for a file we could not
+    read."""
+    with pytest.raises(ValueError, match="does not parse"):
+        parse_any('{"transcript": [', default_call_id="broken")
+
+
+def test_text_with_no_speaker_lines_is_refused_rather_than_graded() -> None:
+    with pytest.raises(ValueError, match="no turns found"):
+        parse_any("just some prose with no speaker labels", default_call_id="prose")
+
+
+def test_the_cap_banner_does_not_claim_a_critical_when_the_cap_was_majors() -> None:
+    majors = [
+        Finding(
+            call_id=f"c{i}",
+            turn_index=1,
+            kind=FindingKind.PROMPT_VIOLATION,
+            severity=Severity.MAJOR,
+            quote="Sure thing.",
+            explanation="Missing disclosure.",
+        )
+        for i in range(3)
+    ]
+    log = call((LogSpeaker.AGENT, "Sure thing."))
+    report = analyse_calls([log], sheet(), generated_at=NOW).model_copy(
+        update={"findings": tuple(majors)}
+    )
+    report = report.model_copy(
+        update={"grade": grade_report(report.categories, tuple(majors), RUBRIC_V1)}
+    )
+    html = render_html(report)
+    assert "3 major findings" in html
+    assert "A single critical finding limits" not in html

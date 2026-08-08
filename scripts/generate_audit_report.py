@@ -36,7 +36,11 @@ from simharness.world.factsheet import load_facts, world_from_facts
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
-    logs = load_call_logs(args.logs)
+    try:
+        logs = load_call_logs(args.logs)
+    except ValueError as error:
+        print(f"Could not read the logs: {error}", file=sys.stderr)
+        return 1
     if not logs:
         print(f"No call logs found at {args.logs}", file=sys.stderr)
         return 1

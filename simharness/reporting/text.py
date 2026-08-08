@@ -23,6 +23,7 @@ __all__ = [
     "money_amounts",
     "normalise",
     "numbers",
+    "redact_card_numbers",
     "similarity",
     "times_of_day",
     "tokens",
@@ -189,3 +190,24 @@ def times_of_day(text: str) -> list[str]:
 
 def numbers(text: str) -> list[float]:
     return [float(m.group()) for m in _NUMBER.finditer(_THOUSANDS.sub("", text))]
+
+
+_CARD = re.compile(r"\b(?:\d[ -]?){13,19}\b")
+
+
+def redact_card_numbers(text: str) -> str:
+    """Mask all but the first and last four digits of anything card-shaped.
+
+    The audit reports an agent for reading a card number aloud, so the report
+    itself must not become the second place that number is written down. Enough
+    digits are kept for the business to match the finding to the call.
+    """
+
+    def mask(match: re.Match[str]) -> str:
+        digits = [c for c in match.group() if c.isdigit()]
+        if len(digits) < 13:
+            return match.group()
+        hidden = "*" * (len(digits) - 8)
+        return f"{''.join(digits[:4])} {hidden} {''.join(digits[-4:])}"
+
+    return _CARD.sub(mask, text)

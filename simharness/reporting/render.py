@@ -125,11 +125,16 @@ def _header(report: AuditReport) -> str:
 def _cap_banner(report: AuditReport) -> str:
     if not report.grade.capped_by:
         return ""
+    why = (
+        "A single critical finding limits the overall grade regardless of how the "
+        "other categories scored."
+        if "critical" in report.grade.capped_by
+        else "A pattern of major findings limits the overall grade regardless of how "
+        "the other categories scored."
+    )
     return (
         '<p class="banner">Grade capped by '
-        f"{html.escape(report.grade.capped_by)}. "
-        "A single critical finding limits the overall grade regardless of how the "
-        "other categories scored.</p>"
+        f"{html.escape(report.grade.capped_by)}. {why}</p>"
     )
 
 

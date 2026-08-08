@@ -90,7 +90,19 @@ def parse_any(raw: str, *, default_call_id: str = "call") -> list[CallLog]:
 
     documents = _load_json_documents(stripped)
     if documents is None:
-        return [parse_text_transcript(raw, call_id=default_call_id)]
+        if stripped[0] in "{[":
+            raise ValueError(
+                f"{default_call_id}: looks like JSON but does not parse. Refusing to "
+                "read it as a transcript - a grade computed from a file we could not "
+                "read would be worse than no grade."
+            )
+        log = parse_text_transcript(raw, call_id=default_call_id)
+        if not log.turns:
+            raise ValueError(
+                f"{default_call_id}: no turns found. A transcript needs lines of the "
+                "form 'Speaker: what they said'."
+            )
+        return [log]
 
     logs: list[CallLog] = []
     for index, doc in enumerate(documents):
