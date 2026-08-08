@@ -26,6 +26,7 @@ from simharness.reporting.schemas import (
     Category,
     CategoryScore,
     FactSheet,
+    FactSource,
     Finding,
     FindingKind,
     LogSpeaker,
@@ -470,3 +471,33 @@ def test_the_cap_banner_does_not_claim_a_critical_when_the_cap_was_majors() -> N
     html = render_html(report)
     assert "3 major findings" in html
     assert "A single critical finding limits" not in html
+
+
+class _BrokenProvider:
+    """A provider that fails the way a wrong key or a rate limit fails."""
+
+    def public_facts(self, *, business_id: str) -> dict[str, str]:
+        raise RuntimeError("Context.dev error 401: API key not found")
+
+
+def test_a_failing_fact_provider_degrades_instead_of_killing_the_audit() -> None:
+    """A bad key used to abort the run with a traceback and no report at all,
+    which is a worse outcome than an audit that checked slightly less."""
+    result = build_fact_sheet(
+        business(), provider=_BrokenProvider(), required_keys=("check_in_time",)
+    )
+    assert result.provider_error.startswith("RuntimeError: Context.dev error 401")
+    assert result.scraped_at is None
+    assert result.get("check_in_time") is not None
+    assert result.get("check_in_time").source is FactSource.ABSENT  # type: ignore[union-attr]
+    assert result.get("cancellation_window").value == "48 hours"  # type: ignore[union-attr]
+
+
+def test_the_owner_is_told_when_the_scrape_failed() -> None:
+    """Silently checking fewer facts reads as a clean bill of health."""
+    sheet_ = build_fact_sheet(
+        business(), provider=_BrokenProvider(), required_keys=("check_in_time",)
+    )
+    log = call((LogSpeaker.AGENT, "Good morning."))
+    html_out = render_html(analyse_calls([log], sheet_, generated_at=NOW))
+    assert "could not reach your website" in html_out

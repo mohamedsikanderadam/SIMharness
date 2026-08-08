@@ -190,6 +190,10 @@ class FactSheet(Frozen):
     timezone: str = ""
     facts: tuple[BusinessFact, ...] = ()
     scraped_at: datetime | None = None
+    provider_error: str = ""
+    """Why the gap-filling scrape did not happen, when it was attempted and
+    failed. An audit that quietly checked fewer facts than it was asked to would
+    read as a clean bill of health for the facts it skipped."""
 
     def get(self, key: str) -> BusinessFact | None:
         return next((f for f in self.facts if f.key == key), None)
