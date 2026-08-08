@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, time, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from simharness.schemas import (
     AvailabilitySlot,
@@ -38,7 +38,15 @@ from simharness.schemas import (
     Policies,
     WorldState,
 )
-from simharness.world.builders import PINNED_NOW
+
+PINNED_NOW: Final = datetime(2026, 3, 10, 10, 0)
+"""Tuesday morning. Fixed rather than seeded: every claim about dates, days of
+the week and opening hours has to mean the same thing in every episode, or two
+transcripts stop being comparable.
+
+Previously imported from ``world.builders``, which the red-team pivot removed —
+this is the only definition left, so it lives here now.
+"""
 
 
 def _hours(spec: dict[str, Any]) -> tuple[OpeningHours, ...]:
