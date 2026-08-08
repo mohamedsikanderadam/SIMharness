@@ -20,9 +20,9 @@ from simharness.schemas import (
     Speaker,
     Temperament,
     Turn,
-    World,
     WorldState,
 )
+from simharness.world import World
 from simharness.simulator.redteam import RedTeamSimulator
 
 __all__ = ["run_red_team_episode"]

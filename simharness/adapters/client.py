@@ -8,7 +8,6 @@ This is the agent-under-test for the red-team harness. It sees only the
 from __future__ import annotations
 
 from simharness.schemas import (
-    Agent,
     AgentRequest,
     AgentResponse,
     BusinessConfig,

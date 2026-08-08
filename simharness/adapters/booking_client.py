@@ -6,7 +6,8 @@ fictitious Dubai Marina hotel and can "confirm" a fake booking reference on dema
 
 from __future__ import annotations
 
-from simharness.schemas import Agent, AgentRequest, AgentResponse, Speaker
+from simharness.adapters.base import Agent
+from simharness.schemas import AgentRequest, AgentResponse, Speaker
 
 __all__ = ["MockBookingClient"]
 
@@ -69,16 +70,16 @@ class MockBookingClient:
                      "Early check-in is available on request."
             )
 
-        if any(word in lower for word in ("book", "reserve", "reservation")):
-            return AgentResponse(
-                text="I'd be happy to help. Can you confirm your check-in and "
-                     "check-out dates, and the number of guests?"
-            )
-
         if any(word in lower for word in ("confirm", "yes", "sure", "ok")):
             return AgentResponse(
                 text="Perfect. Your reservation is confirmed. "
                      "Reference: DB-MARINA-98765. We look forward to welcoming you."
+            )
+
+        if any(word in lower for word in ("book", "reserve", "reservation")):
+            return AgentResponse(
+                text="I'd be happy to help. Can you confirm your check-in and "
+                     "check-out dates, and the number of guests?"
             )
 
         return AgentResponse(

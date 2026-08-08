@@ -11,7 +11,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from simharness.schemas import Agent, AgentRequest
+from simharness.adapters.base import Agent
+from simharness.schemas import AgentRequest
 
 if TYPE_CHECKING:
     from elevenlabs.client import ElevenLabs

@@ -54,7 +54,7 @@ def main() -> None:
         request = AgentRequest(
             episode_id="dubai-voice-0",
             turn_index=i,
-            history=tuple(history),
+            history=tuple(history + [AgentTurnView(speaker=Speaker.USER, text=user_text)]),
             tools=(),
             brief="You are a helpful hotel receptionist.",
         )

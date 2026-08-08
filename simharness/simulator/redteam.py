@@ -11,12 +11,12 @@ from simharness.schemas import (
     ActiveTarget,
     BusinessConfig,
     Casefile,
-    Simulator,
     SimulatorContext,
     SimulatorInternalState,
     SimulatorOutput,
     TerminationReason,
 )
+from simharness.simulator.base import Simulator
 
 __all__ = ["RedTeamSimulator"]
 
