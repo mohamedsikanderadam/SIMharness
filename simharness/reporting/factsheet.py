@@ -62,13 +62,22 @@ def build_fact_sheet(
     """
     facts: dict[str, BusinessFact] = {f.key: f for f in facts_from_business_config(config)}
     scraped_at: datetime | None = None
+    provider_error = ""
 
     wanted = set(required_keys) | set(facts)
     missing = {key for key in wanted if key not in facts or not facts[key].value}
 
     if provider is not None and missing:
-        supplied = provider.public_facts(business_id=config.business_id)
-        scraped_at = datetime.now(UTC)
+        try:
+            supplied = provider.public_facts(business_id=config.business_id)
+        except Exception as error:  # every provider failure is the same to us
+            # A bad key, a rate limit or a page that would not load must not cost
+            # the business its audit. Degrade to config-only facts and record
+            # why, rather than crashing or quietly checking less.
+            supplied = {}
+            provider_error = f"{type(error).__name__}: {error}"
+        else:
+            scraped_at = datetime.now(UTC)
         for key in sorted(missing):
             value = supplied.get(key, "").strip()
             if not value:
@@ -95,6 +104,7 @@ def build_fact_sheet(
         timezone=config.timezone,
         facts=tuple(facts[key] for key in sorted(facts)),
         scraped_at=scraped_at,
+        provider_error=provider_error,
     )
 
 

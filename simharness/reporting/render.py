@@ -261,6 +261,13 @@ def _actions_block(report: AuditReport) -> str:
                 f"{worst.score:.0f}/100 — see the appendix for which metric pulled it down."
             )
 
+    if report.fact_sheet.provider_error:
+        actions.append(
+            "We could not reach your website to fill the facts you did not supply, so "
+            "those were not checked at all. Send us the missing facts, or ask us to "
+            f"re-run. ({html.escape(report.fact_sheet.provider_error)})"
+        )
+
     if report.fact_sheet.coverage < 1.0:
         scraped = sum(1 for f in report.fact_sheet.facts if f.source is FactSource.CONTEXT_DEV)
         if scraped:

@@ -9,6 +9,7 @@ they are exactly the ones a well-meaning refactor quietly breaks.
 from __future__ import annotations
 
 from datetime import UTC, datetime, time, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -26,6 +27,7 @@ from simharness.reporting.schemas import (
     Category,
     CategoryScore,
     FactSheet,
+    FactSource,
     Finding,
     FindingKind,
     LogSpeaker,
@@ -33,6 +35,11 @@ from simharness.reporting.schemas import (
     MetricBasis,
     Severity,
     ToolInvocation,
+)
+from simharness.reporting.transcribe import (
+    TranscribedWord,
+    call_log_from_words,
+    transcribe_recordings,
 )
 from simharness.schemas import (
     BusinessConfig,
@@ -470,3 +477,128 @@ def test_the_cap_banner_does_not_claim_a_critical_when_the_cap_was_majors() -> N
     html = render_html(report)
     assert "3 major findings" in html
     assert "A single critical finding limits" not in html
+
+
+class _BrokenProvider:
+    """A provider that fails the way a wrong key or a rate limit fails."""
+
+    def public_facts(self, *, business_id: str) -> dict[str, str]:
+        raise RuntimeError("Context.dev error 401: API key not found")
+
+
+def test_a_failing_fact_provider_degrades_instead_of_killing_the_audit() -> None:
+    """A bad key used to abort the run with a traceback and no report at all,
+    which is a worse outcome than an audit that checked slightly less."""
+    result = build_fact_sheet(
+        business(), provider=_BrokenProvider(), required_keys=("check_in_time",)
+    )
+    assert result.provider_error.startswith("RuntimeError: Context.dev error 401")
+    assert result.scraped_at is None
+    assert result.get("check_in_time") is not None
+    assert result.get("check_in_time").source is FactSource.ABSENT  # type: ignore[union-attr]
+    assert result.get("cancellation_window").value == "48 hours"  # type: ignore[union-attr]
+
+
+def test_the_owner_is_told_when_the_scrape_failed() -> None:
+    """Silently checking fewer facts reads as a clean bill of health."""
+    sheet_ = build_fact_sheet(
+        business(), provider=_BrokenProvider(), required_keys=("check_in_time",)
+    )
+    log = call((LogSpeaker.AGENT, "Good morning."))
+    html_out = render_html(analyse_calls([log], sheet_, generated_at=NOW))
+    assert "could not reach your website" in html_out
+
+
+# --------------------------------------------------------------------------- #
+# Recordings: the third input, via speech recognition
+# --------------------------------------------------------------------------- #
+
+
+def words(*spec: tuple[str, float, float, str]) -> tuple[TranscribedWord, ...]:
+    return tuple(TranscribedWord(t, s, e, spk) for t, s, e, spk in spec)
+
+
+def test_diarised_words_become_turns_at_each_speaker_change() -> None:
+    log = call_log_from_words(
+        words(
+            ("Marina", 0.0, 0.4, "speaker_0"),
+            ("Bay.", 0.4, 0.9, "speaker_0"),
+            ("How", 2.0, 2.2, "speaker_1"),
+            ("much?", 2.2, 2.6, "speaker_1"),
+            ("Four", 4.0, 4.3, "speaker_0"),
+            ("fifty.", 4.3, 4.8, "speaker_0"),
+        ),
+        call_id="rec-1",
+    )
+    assert [t.text for t in log.turns] == ["Marina Bay.", "How much?", "Four fifty."]
+    assert [t.speaker for t in log.turns] == [
+        LogSpeaker.AGENT,
+        LogSpeaker.CUSTOMER,
+        LogSpeaker.AGENT,
+    ]
+    assert log.source == "stt"
+
+
+def test_latency_comes_from_the_silence_in_the_audio() -> None:
+    """The gap between turns is what the caller actually waited through, which
+    a vendor's own latency field routinely understates."""
+    log = call_log_from_words(
+        words(
+            ("Hello?", 0.0, 1.0, "speaker_1"),
+            ("Yes,", 4.5, 5.0, "speaker_0"),
+        ),
+        call_id="rec-2",
+    )
+    assert log.turns[1].latency_ms == 3500.0
+    assert log.has_timing
+
+
+def test_timing_metrics_are_measurable_from_a_recording() -> None:
+    """Dead air needs absolute timestamps, so the offsets are anchored - any
+    anchor is correct because every metric is a difference between two turns."""
+    log = call_log_from_words(
+        words(
+            ("Hello?", 0.0, 1.0, "speaker_1"),
+            ("Yes,", 12.0, 13.0, "speaker_0"),
+        ),
+        call_id="rec-3",
+    )
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    dead_air = next(
+        m
+        for category in report.categories
+        for m in category.metrics
+        if m.key == "dead_air_per_call"
+    )
+    assert dead_air.basis is MetricBasis.MEASURED
+    assert dead_air.value == 1.0
+
+
+def test_the_agent_is_whoever_speaks_first_unless_told_otherwise() -> None:
+    """Diarisation labels speakers; it does not know which one works here."""
+    spec = words(
+        ("Hi,", 0.0, 0.5, "speaker_0"),
+        ("Marina", 2.0, 2.5, "speaker_1"),
+    )
+    assert call_log_from_words(spec, call_id="r").turns[0].speaker is LogSpeaker.AGENT
+    override = call_log_from_words(spec, call_id="r", agent_speaker="speaker_1")
+    assert override.turns[0].speaker is LogSpeaker.CUSTOMER
+    assert override.turns[1].speaker is LogSpeaker.AGENT
+
+
+def test_a_silent_recording_yields_no_turns_rather_than_a_blank_turn() -> None:
+    assert call_log_from_words((), call_id="silent").turns == ()
+
+
+def test_recordings_are_transcribed_in_name_order_with_the_stem_as_call_id(
+    tmp_path: Path,
+) -> None:
+    class Fake:
+        def transcribe(self, path: Path) -> tuple[TranscribedWord, ...]:
+            return words((path.stem, 0.0, 1.0, "speaker_0"))
+
+    for name in ("call-b.mp3", "call-a.wav", "notes.txt"):
+        (tmp_path / name).write_bytes(b"x")
+
+    logs = transcribe_recordings(tmp_path, Fake())
+    assert [log.call_id for log in logs] == ["call-a", "call-b"]

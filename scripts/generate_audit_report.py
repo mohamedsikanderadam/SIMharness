@@ -35,6 +35,7 @@ from simharness.reporting.metrics.adherence import (
 from simharness.reporting.metrics.compliance import DEFAULT_POLICY_RULES, PolicyRule
 from simharness.reporting.render import render_html
 from simharness.reporting.schemas import AuditReport
+from simharness.reporting.transcribe import ElevenLabsTranscriber, transcribe_recordings
 from simharness.schemas import BusinessConfig
 from simharness.world.factsheet import load_facts, world_from_facts
 
@@ -44,13 +45,26 @@ _PackT = TypeVar("_PackT", PolicyRule, RequiredBehaviour)
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
+    if bool(args.logs) == bool(args.recordings):
+        print("Pass exactly one of --logs or --recordings.", file=sys.stderr)
+        return 1
+
+    source = args.logs or args.recordings
     try:
-        logs = load_call_logs(args.logs)
+        logs = (
+            load_call_logs(args.logs)
+            if args.logs
+            else transcribe_recordings(
+                args.recordings,
+                ElevenLabsTranscriber(),
+                agent_speaker=args.agent_speaker,
+            )
+        )
     except ValueError as error:
         print(f"Could not read the logs: {error}", file=sys.stderr)
         return 1
     if not logs:
-        print(f"No call logs found at {args.logs}", file=sys.stderr)
+        print(f"No call logs found at {source}", file=sys.stderr)
         return 1
 
     config = _business_config(args.business)
@@ -79,7 +93,18 @@ def main(argv: list[str] | None = None) -> int:
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--logs", required=True, help="Call log file or directory.")
+    parser.add_argument("--logs", help="Call log file or directory.")
+    parser.add_argument(
+        "--recordings",
+        help="Audio file or directory. Transcribed with ElevenLabs Scribe, which "
+        "needs ELEVENLABS_API_KEY and costs credits. Use instead of --logs.",
+    )
+    parser.add_argument(
+        "--agent-speaker",
+        default="",
+        help="Which diarised speaker is the business, e.g. speaker_1. Defaults to "
+        "whoever speaks first.",
+    )
     parser.add_argument(
         "--business", required=True, help="BusinessConfig JSON, or a world fact sheet JSON."
     )
