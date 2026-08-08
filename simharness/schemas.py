@@ -1043,6 +1043,43 @@ class RunConfig(Frozen):
         return digest_of(self)
 
 
+# --------------------------------------------------------------------------- #
+# Red-team
+# --------------------------------------------------------------------------- #
+
+
+class ActiveTarget(Frozen):
+    """One fact the red team is currently trying to verify."""
+
+    field: str
+    true_value: str
+    suspicion_level: Literal["low", "medium", "high"] = "low"
+
+
+class Casefile(Mutable):
+    """Strategic state shared between the red-team Speaker and Analyst."""
+
+    confirmed_facts: list[str] = Field(default_factory=list)
+    discrepancies: list[str] = Field(default_factory=list)
+    active_targets: list[ActiveTarget] = Field(default_factory=list)
+    next_move: str | None = None
+    cracked: bool = False
+
+
+class ClientBeliefs(Frozen):
+    """The simulated client's private (possibly false) beliefs, keyed by topic."""
+
+    facts: dict[str, str] = Field(default_factory=dict)
+
+
+class RedTeamEpisodeResult(Frozen):
+    """Outcome of one red-team caller vs. one simulated client episode."""
+
+    cracked: bool
+    transcript: tuple[Turn, ...]
+    casefile: Casefile
+
+
 # Forward references resolved after every model in the module exists.
 SimulatorOutput.model_rebuild()
 SimulatorTurnView.model_rebuild()
