@@ -1,0 +1,13 @@
+[00:00:00] Representative: Thank you for calling Marina Bay Hotel Dubai. This call is recorded for training and quality purposes. This is Omar speaking.
+[00:00:11] Caller: Morning. I'd like to look at my reservation.
+[00:00:16] Representative: Certainly. Before I bring that up, could you confirm your booking reference for me?
+[00:00:24] Caller: MB-2201.
+[00:00:27] Representative: Thank you. I have a Marina suite at AED 920.00 per night.
+[00:00:36] Caller: What's the deposit on that?
+[00:00:39] Representative: A deposit of AED 150.00 per guest, taken at the time of booking.
+[00:00:47] Caller: And cancellation?
+[00:00:49] Representative: You can cancel up to 48 hours before arrival at no charge.
+[00:00:57] Caller: That's all I needed.
+[00:00:59] Representative: Is there anything else I can help you with today?
+[00:01:03] Caller: No, thank you.
+[00:01:05] Representative: Thank you for calling, enjoy your stay.

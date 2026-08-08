@@ -1,0 +1,9 @@
+[00:00:00] Representative: Thank you for calling Marina Bay Hotel Dubai, this is Priya, how may I help?
+[00:00:06] Caller: Hi, I want to check a booking I made last week.
+[00:00:11] Representative: Of course, let me pull that up for you now.
+[00:00:15] Caller: It's under Hassan, arriving Friday.
+[00:00:20] Representative: I have it here. A deluxe room at AED 450.00 per night.
+[00:00:28] Caller: And if I need to cancel?
+[00:00:31] Representative: You can cancel free of charge up to 24 hours before arrival.
+[00:00:38] Caller: Perfect, thanks.
+[00:00:40] Representative: My pleasure, have a good day.

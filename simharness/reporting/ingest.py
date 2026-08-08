@@ -50,8 +50,18 @@ __all__ = [
     "parse_text_transcript",
 ]
 
-_AGENT_ROLES = frozenset({"agent", "assistant", "ai", "bot", "system_agent"})
-_CUSTOMER_ROLES = frozenset({"user", "customer", "caller", "human", "client"})
+_AGENT_ROLES = frozenset(
+    {
+        "agent", "assistant", "ai", "bot", "system_agent",
+        # A human contact centre labels the person answering, not "the agent".
+        # Same audit, same transcript shape, different job title.
+        "rep", "representative", "advisor", "adviser", "operator", "csr",
+        "associate", "consultant", "specialist", "staff", "employee",
+    }
+)
+_CUSTOMER_ROLES = frozenset(
+    {"user", "customer", "caller", "human", "client", "guest", "member", "patient"}
+)
 _TOOL_ROLES = frozenset({"tool", "function", "tool_result"})
 
 _TEXT_KEYS = ("message", "text", "content", "utterance", "transcript")
@@ -90,19 +100,17 @@ def parse_any(raw: str, *, default_call_id: str = "call") -> list[CallLog]:
 
     documents = _load_json_documents(stripped)
     if documents is None:
-        if stripped[0] in "{[":
-            raise ValueError(
-                f"{default_call_id}: looks like JSON but does not parse. Refusing to "
-                "read it as a transcript - a grade computed from a file we could not "
-                "read would be worse than no grade."
-            )
         log = parse_text_transcript(raw, call_id=default_call_id)
-        if not log.turns:
-            raise ValueError(
-                f"{default_call_id}: no turns found. A transcript needs lines of the "
-                "form 'Speaker: what they said'."
-            )
-        return [log]
+        if log.turns:
+            return [log]
+        # Nothing readable either way. Grading a file we could not read is worse
+        # than refusing it, so say which failure it was and stop.
+        detail = (
+            "it starts like JSON but does not parse"
+            if stripped[0] in "{["
+            else "it has no lines of the form 'Speaker: what they said'"
+        )
+        raise ValueError(f"{default_call_id}: no turns found - {detail}.")
 
     logs: list[CallLog] = []
     for index, doc in enumerate(documents):

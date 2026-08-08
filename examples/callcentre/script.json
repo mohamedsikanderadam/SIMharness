@@ -1,0 +1,34 @@
+[
+  {
+    "rule_id": "greeting",
+    "label": "Opened with the approved greeting",
+    "trigger": "",
+    "satisfied_by": "thank you for calling marina bay",
+    "severity": "major",
+    "explanation": "The approved opening was not used."
+  },
+  {
+    "rule_id": "identity_check",
+    "label": "Verified the caller before discussing the booking",
+    "trigger": "\\b(booking|reservation|my account)\\b",
+    "satisfied_by": "\\b(confirm your (date of birth|postcode|booking reference)|security question)\\b",
+    "severity": "major",
+    "explanation": "Discussed an account without completing the identity check."
+  },
+  {
+    "rule_id": "call_recording_notice",
+    "label": "Told the caller the call was recorded",
+    "trigger": "",
+    "satisfied_by": "\\b(recorded|recording) for (training|quality)\\b",
+    "severity": "major",
+    "explanation": "The recording notice is a legal requirement on every call."
+  },
+  {
+    "rule_id": "close_with_anything_else",
+    "label": "Asked whether anything else was needed",
+    "trigger": "",
+    "satisfied_by": "\\b(anything else|is there anything further)\\b",
+    "severity": "minor",
+    "explanation": "Closed the call without checking the caller was done."
+  }
+]
