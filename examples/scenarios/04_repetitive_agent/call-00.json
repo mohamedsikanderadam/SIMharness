@@ -1,0 +1,66 @@
+{
+  "conversation_id": "repeat-00",
+  "agent_id": "marina-bay",
+  "outcome": "abandoned",
+  "metadata": {
+    "start_time_unix_secs": 1778649600,
+    "call_duration_secs": 27,
+    "termination_reason": "caller_hung_up"
+  },
+  "transcript": [
+    {
+      "role": "user",
+      "message": "I'd like to book a room.",
+      "time_in_call_secs": 0,
+      "duration_secs": 1.8
+    },
+    {
+      "role": "agent",
+      "message": "Good afternoon, you're through to the automated assistant at Marina Bay Hotel Dubai. How can I help?",
+      "time_in_call_secs": 2.0,
+      "duration_secs": 4.0
+    },
+    {
+      "role": "user",
+      "message": "My name is Aisha, number 050 111 2233.",
+      "time_in_call_secs": 6.5,
+      "duration_secs": 3.0
+    },
+    {
+      "role": "agent",
+      "message": "Could I take your name please?",
+      "time_in_call_secs": 10.0,
+      "duration_secs": 2.2
+    },
+    {
+      "role": "user",
+      "message": "Aisha. I said that.",
+      "time_in_call_secs": 12.6,
+      "duration_secs": 1.5
+    },
+    {
+      "role": "agent",
+      "message": "Could I take your phone number please?",
+      "time_in_call_secs": 14.5,
+      "duration_secs": 2.4
+    },
+    {
+      "role": "user",
+      "message": "050 111 2233.",
+      "time_in_call_secs": 17.2,
+      "duration_secs": 2.0
+    },
+    {
+      "role": "agent",
+      "message": "Could I take your phone number please?",
+      "time_in_call_secs": 19.6,
+      "duration_secs": 2.4
+    },
+    {
+      "role": "user",
+      "message": "This is hopeless.",
+      "time_in_call_secs": 22.2,
+      "duration_secs": 1.4
+    }
+  ]
+}

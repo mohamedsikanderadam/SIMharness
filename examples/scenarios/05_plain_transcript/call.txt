@@ -1,0 +1,6 @@
+Customer: Hello, is anyone there?
+Agent: Good afternoon, you're through to the automated assistant at Marina Bay Hotel Dubai.
+Customer: How much is a deluxe room?
+Agent: A deluxe room is AED 450.00 per night.
+Customer: Thanks.
+Agent: You can cancel up to 48 hours before arrival if plans change.

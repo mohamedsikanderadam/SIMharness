@@ -1,0 +1,63 @@
+{
+  "conversation_id": "call-0001",
+  "agent_id": "marina-bay",
+  "outcome": "booked",
+  "metadata": {
+    "start_time_unix_secs": 1778649600,
+    "call_duration_secs": 74,
+    "termination_reason": "caller_hung_up"
+  },
+  "transcript": [
+    {
+      "role": "user",
+      "message": "Hi, how much is a deluxe room for Friday?",
+      "time_in_call_secs": 0,
+      "duration_secs": 3.2
+    },
+    {
+      "role": "agent",
+      "message": "Good afternoon, you're through to the virtual assistant at Marina Bay Hotel Dubai. A deluxe room is AED 450.00 per night.",
+      "time_in_call_secs": 3.8,
+      "duration_secs": 6.5
+    },
+    {
+      "role": "user",
+      "message": "And is there a deposit?",
+      "time_in_call_secs": 11.0,
+      "duration_secs": 1.8
+    },
+    {
+      "role": "agent",
+      "message": "Yes, we take a deposit of AED 100.00 per guest at the time of booking.",
+      "time_in_call_secs": 13.4,
+      "duration_secs": 4.0
+    },
+    {
+      "role": "user",
+      "message": "Fine. Can I cancel if my plans change?",
+      "time_in_call_secs": 18.0,
+      "duration_secs": 2.4
+    },
+    {
+      "role": "agent",
+      "message": "Of course. You can cancel free of charge up to 48 hours before arrival.",
+      "time_in_call_secs": 21.0,
+      "duration_secs": 4.2
+    },
+    {
+      "role": "user",
+      "message": "Great, book it. My number is 050 111 2233.",
+      "time_in_call_secs": 26.0,
+      "duration_secs": 3.0
+    },
+    {
+      "role": "agent",
+      "message": "Just to confirm, that's one deluxe room for Friday. I'll send you a confirmation email shortly.",
+      "time_in_call_secs": 30.0,
+      "duration_secs": 5.5,
+      "tool_calls": [
+        {"tool_name": "create_booking", "params_as_json": {"sku": "DELUXE", "nights": 1}, "ok": true}
+      ]
+    }
+  ]
+}

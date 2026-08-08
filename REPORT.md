@@ -7,6 +7,11 @@ Every metric below names the field in `simharness.schemas` it is computed from.
 A metric with no field behind it is marked **NOT YET MEASURABLE** — report it as
 `n/a` rather than estimating it, and see [Gaps](#gaps).
 
+For a *business's own* agent audited from its production call logs rather than
+from a SIMharness run, this template is not the tool — use `simharness.reporting`
+and `scripts/generate_audit_report.py`, which produce the same categories as a
+graded HTML page.
+
 ---
 
 ## Run header

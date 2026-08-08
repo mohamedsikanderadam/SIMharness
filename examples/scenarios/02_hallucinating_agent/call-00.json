@@ -1,0 +1,60 @@
+{
+  "conversation_id": "halluc-00",
+  "agent_id": "marina-bay",
+  "outcome": "enquiry_only",
+  "metadata": {
+    "start_time_unix_secs": 1778649600,
+    "call_duration_secs": 25,
+    "termination_reason": "caller_hung_up"
+  },
+  "transcript": [
+    {
+      "role": "user",
+      "message": "How much is a deluxe room?",
+      "time_in_call_secs": 0,
+      "duration_secs": 2.0
+    },
+    {
+      "role": "agent",
+      "message": "Good afternoon, you're through to the automated assistant at Marina Bay Hotel Dubai. How can I help? A deluxe room is AED 300.00 per night.",
+      "time_in_call_secs": 2.4,
+      "duration_secs": 5.0
+    },
+    {
+      "role": "user",
+      "message": "Deposit?",
+      "time_in_call_secs": 8.0,
+      "duration_secs": 1.0
+    },
+    {
+      "role": "agent",
+      "message": "We ask for AED 20.00 per guest.",
+      "time_in_call_secs": 9.5,
+      "duration_secs": 3.0
+    },
+    {
+      "role": "user",
+      "message": "Cancellation?",
+      "time_in_call_secs": 13.0,
+      "duration_secs": 1.0
+    },
+    {
+      "role": "agent",
+      "message": "You can cancel up to 2 hours before arrival.",
+      "time_in_call_secs": 14.5,
+      "duration_secs": 3.0
+    },
+    {
+      "role": "user",
+      "message": "We're a group of ten.",
+      "time_in_call_secs": 18.0,
+      "duration_secs": 1.5
+    },
+    {
+      "role": "agent",
+      "message": "No problem, we can accommodate up to 12 guests.",
+      "time_in_call_secs": 20.0,
+      "duration_secs": 3.0
+    }
+  ]
+}
