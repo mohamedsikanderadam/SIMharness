@@ -1,0 +1,19 @@
+{
+  "business_id": "marina-bay",
+  "name": "Marina Bay Hotel Dubai",
+  "timezone": "Asia/Dubai",
+  "catalogue": [
+    {"sku": "DELUXE", "name": "Deluxe room", "unit_price": 45000, "currency": "AED"},
+    {"sku": "SUITE", "name": "Marina suite", "unit_price": 92000, "currency": "AED"}
+  ],
+  "policies": {
+    "cancellation_window_hours": 48,
+    "refund_window_hours": 72,
+    "deposit_per_head": 15000,
+    "deposit_required_from_party_size": 1,
+    "max_party_size": 4,
+    "discount_authority": 5000
+  },
+  "opening_hours": {"open": "00:00", "close": "23:59"},
+  "slots": {"days": 7, "start_hour": 9, "count": 8, "capacity": 2}
+}

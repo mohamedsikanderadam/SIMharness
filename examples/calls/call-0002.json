@@ -1,0 +1,55 @@
+{
+  "conversation_id": "call-0002",
+  "agent_id": "marina-bay",
+  "outcome": "abandoned",
+  "metadata": {
+    "start_time_unix_secs": 1778656800,
+    "call_duration_secs": 58,
+    "termination_reason": "caller_hung_up"
+  },
+  "transcript": [
+    {
+      "role": "user",
+      "message": "Hello, I need a room for six people.",
+      "time_in_call_secs": 0,
+      "duration_secs": 2.6
+    },
+    {
+      "role": "agent",
+      "message": "Hello. Could I take your phone number please?",
+      "time_in_call_secs": 3.0,
+      "duration_secs": 2.8
+    },
+    {
+      "role": "user",
+      "message": "It's 055 987 6543.",
+      "time_in_call_secs": 6.2,
+      "duration_secs": 2.2
+    },
+    {
+      "role": "agent",
+      "message": "Thank you. And could I take your phone number please?",
+      "time_in_call_secs": 12.5,
+      "duration_secs": 3.0
+    },
+    {
+      "role": "user",
+      "message": "I just gave it to you.",
+      "time_in_call_secs": 16.0,
+      "duration_secs": 1.6
+    },
+    {
+      "role": "agent",
+      "message": "Apologies. We can accommodate up to 8 guests in one room, no problem.",
+      "time_in_call_secs": 21.5,
+      "duration_secs": 4.0
+    },
+    {
+      "role": "user",
+      "message": "Forget it.",
+      "time_in_call_secs": 26.0,
+      "duration_secs": 1.0,
+      "interrupted": false
+    }
+  ]
+}
