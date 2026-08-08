@@ -24,6 +24,10 @@ dev = [
     "ruff>=0.6,<1",
     "mypy>=1.11,<2",
 ]
+voice = [
+    "elevenlabs>=2.0,<3",
+    "sounddevice>=0.5,<1",
+]
 
 # Exact pins live in uv.lock (committed). The ranges above are compatibility
 # bounds; `uv sync --frozen` is the reproducible install path.

@@ -127,7 +127,7 @@ class RedTeamSimulator:
             return _goodbye(
                 state,
                 "I think I have what I need, thank you.",
-                TerminationReason.SATIATED,
+                TerminationReason.SATISFIED,
             )
 
         if self._analyst.casefile.pending_clarification == target.field:
