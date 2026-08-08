@@ -294,13 +294,25 @@ def _metric_table(category: CategoryScore) -> str:
     rows = "".join(_metric_row(m) for m in category.metrics)
     score = "—" if category.score is None else f"{category.score:.1f}/100"
     return f"""<h3 class="section-heading">{category.category.value.capitalize()} — {score}</h3>
-<table>
+<div class="table-wrap"><table>
   <thead><tr>
     <th>Metric</th><th>Value</th><th>Score</th><th>Weight</th>
     <th>Sample</th><th>Basis</th>
   </tr></thead>
   <tbody>{rows}</tbody>
-</table>"""
+</table></div>"""
+
+
+_TIGHT_UNITS = frozenset({"%", "ms", "s"})
+
+
+def _value(metric: Metric) -> str:
+    """``4100ms`` and ``50%`` read as one token; ``0.5 per call`` needs the space."""
+    if metric.value is None:
+        return "—"
+    unit = html.escape(metric.unit)
+    separator = "" if not unit or unit in _TIGHT_UNITS or unit.startswith("/") else " "
+    return f"{metric.value:g}{separator}{unit}"
 
 
 def _metric_row(metric: Metric) -> str:
@@ -308,7 +320,7 @@ def _metric_row(metric: Metric) -> str:
         value = '<span class="na">not available</span>'
         score = "—"
     else:
-        value = f"{metric.value:g}{html.escape(metric.unit)}" if metric.value is not None else "—"
+        value = _value(metric)
         score = f"{metric.score:.0f}" if metric.score is not None else "context only"
 
     note = f'<p class="metric-note">{html.escape(metric.note)}</p>' if metric.note else ""
@@ -348,13 +360,13 @@ def _calls_table(report: AuditReport) -> str:
         for s in report.call_summaries
     )
     return f"""<h3 class="section-heading">Calls</h3>
-<table>
+<div class="table-wrap"><table>
   <thead><tr>
     <th>Call</th><th>Started</th><th>Turns</th><th>Duration</th>
     <th>Outcome</th><th>Findings</th><th>Critical</th>
   </tr></thead>
   <tbody>{rows}</tbody>
-</table>"""
+</table></div>"""
 
 
 def _gaps_table(report: AuditReport) -> str:
@@ -371,10 +383,10 @@ def _gaps_table(report: AuditReport) -> str:
     return f"""<h3 class="section-heading">What this audit could not measure</h3>
 <p class="empty">These are reported as unmeasured rather than estimated. Nothing below
    affected the grade in either direction.</p>
-<table>
+<div class="table-wrap"><table>
   <thead><tr><th>Metric</th><th>Why not</th><th>What would fix it</th></tr></thead>
   <tbody>{rows}</tbody>
-</table>"""
+</table></div>"""
 
 
 def _methodology(report: AuditReport) -> str:
@@ -405,10 +417,10 @@ def _methodology(report: AuditReport) -> str:
   <li>Metrics whose logs lacked the necessary fields are excluded from the average
       rather than scored zero.</li>
 </ul>
-<table>
+<div class="table-wrap"><table>
   <thead><tr><th>Fact</th><th>Value audited against</th><th>Source</th></tr></thead>
   <tbody>{facts}</tbody>
-</table>"""
+</table></div>"""
 
 
 # --------------------------------------------------------------------------- #
@@ -544,6 +556,8 @@ h2 {
 .actions-list li { margin-bottom: 6px; }
 .empty, .more { color: var(--muted); font-size: 13px; }
 table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
+.table-wrap { overflow-x: auto; }
+@media print { .table-wrap { overflow-x: visible; } }
 th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line);
          vertical-align: top; }
 th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
