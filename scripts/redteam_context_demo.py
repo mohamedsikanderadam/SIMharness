@@ -1,76 +1,46 @@
-"""Red-team demo that uses Context.dev to ground-truth both the judge and the judged.
+"""Red-team demo grounded in a Context.dev extraction of a real business.
 
-The public Context.dev facts become the red team's ground truth (BusinessConfig).
-The same facts are turned into the client's private beliefs (ClientBeliefs), with
-one field optionally altered to simulate a wrong or outdated internal policy.
-
-This keeps the red team blind to the client's actual knowledge, exactly as
-FIRST_PRINCIPLES.md requires.
+The extracted facts become the red team's ground truth. The same facts are
+restated as the client's beliefs with one field corrupted, so the red team is
+looking for something it was not told the location of.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import re
 from datetime import datetime, time
-from pathlib import Path
 
+from scripts._demo import LIE_FIELDS, client_beliefs_with_lie, load_env
 from simharness.adapters.contextdev_client import ContextDevClient
 from simharness.runner import run_red_team_episode
 from simharness.schemas import (
     BusinessConfig,
     CatalogueItem,
-    ClientBeliefs,
     OpeningHours,
     Policies,
 )
-from simharness.simulator.adaptive_redteam import AdaptiveRedTeamSimulator
+
+#: Used when the page states no rate at all, so the demo still has something to
+#: probe. Printed when it applies — a fabricated fact sheet that looks extracted
+#: is worse than an obviously empty one.
+_DEFAULT_PRICE = 20000
 
 
-def _load_env(path: Path) -> None:
-    if not path.exists():
-        return
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        os.environ.setdefault(key, value)
-
-
-def _parse_amount(text: str | None, default: int = 0) -> int:
-    if not text:
+def _amount(text: str | None, default: int) -> int:
+    if not text or not (match := re.search(r"[\d,]+(?:\.\d+)?", text)):
         return default
-    match = re.search(r"[\d,]+(?:\.\d+)?", text)
-    if not match:
+    return int(float(match.group().replace(",", "")) * 100)
+
+
+def _hours(text: str | None, default: int) -> int:
+    if not text or not (match := re.search(r"[\d,]+(?:\.\d+)?", text)):
         return default
-    value = float(match.group(0).replace(",", ""))
-    return int(value * 100)
+    value = float(match.group().replace(",", ""))
+    return int(value * 24 if "day" in text.lower() else value)
 
 
-def _parse_percentage(text: str | None) -> float:
-    if not text:
-        return 0.0
-    match = re.search(r"[\d,]+(?:\.\d+)?", text)
-    if not match:
-        return 0.0
-    return float(match.group(0).replace(",", ""))
-
-
-def _parse_hours(text: str | None, default: int = 24) -> int:
-    if not text:
-        return default
-    match = re.search(r"[\d,]+(?:\.\d+)?", text)
-    if not match:
-        return default
-    value = float(match.group(0).replace(",", ""))
-    if any(u in text.lower() for u in ("day", "days")):
-        value *= 24
-    return int(value)
-
-
-def _parse_time(text: str | None, default: time) -> time:
+def _clock(text: str | None, default: time) -> time:
     if not text:
         return default
     for fmt in ("%I:%M %p", "%I:%M%p", "%I %p", "%H:%M", "%H:%M:%S"):
@@ -83,116 +53,50 @@ def _parse_time(text: str | None, default: time) -> time:
 
 def _extract_business(url: str, domain: str) -> BusinessConfig:
     client = ContextDevClient()
-    brand = client.brand_retrieve(domain=domain)
-    facts = client.extract_hotel_facts(url=url)
+    brand = client.brand_retrieve(domain=domain).get("brand", {})
+    data = client.extract_hotel_facts(url=url).get("data", {})
 
-    print("=== Context.dev brand ===")
-    print(brand.get("brand", {}).get("title", domain))
-
+    print(f"=== Context.dev brand: {brand.get('title', domain)} ===")
     print("\n=== Context.dev facts ===")
-    for key, value in facts.get("data", {}).items():
+    for key, value in data.items():
         print(f"  {key}: {value}")
 
-    price = _parse_amount(facts.get("data", {}).get("price_per_night"), default=20000)
-    if price == 20000:
-        print("  (price_per_night missing; using default £200.00)")
+    price = _amount(data.get("price_per_night"), default=_DEFAULT_PRICE)
+    if data.get("price_per_night") is None:
+        print(f"  (no price on the page; assuming £{_DEFAULT_PRICE / 100:.2f})")
 
-    deposit_text = facts.get("data", {}).get("deposit_policy") or ""
+    deposit_text = data.get("deposit_policy") or ""
     if "%" in deposit_text:
-        deposit_per_head = int(price * _parse_percentage(deposit_text) / 100)
+        match = re.search(r"[\d.]+", deposit_text)
+        deposit = int(price * float(match.group()) / 100) if match else int(price * 0.2)
     else:
-        deposit_per_head = _parse_amount(deposit_text, default=int(price * 0.2))
-        if deposit_per_head == int(price * 0.2):
-            print("  (deposit_policy missing; using default 20% of price)")
+        deposit = _amount(deposit_text, default=int(price * 0.2))
+        if not deposit_text:
+            print("  (no deposit on the page; assuming 20% of the rate)")
 
-    cancellation_hours = _parse_hours(
-        facts.get("data", {}).get("cancellation_policy"), default=24
-    )
-
-    check_in = _parse_time(
-        facts.get("data", {}).get("check_in_time"), default=time(15, 0)
-    )
-    check_out = _parse_time(
-        facts.get("data", {}).get("check_out_time"), default=time(11, 0)
-    )
+    cancellation = _hours(data.get("cancellation_policy"), default=24)
 
     return BusinessConfig(
         business_id=domain.replace(".", "-"),
-        name=facts.get("data", {}).get("name")
-        or brand.get("brand", {}).get("title")
-        or "Demo Hotel",
+        name=data.get("name") or brand.get("title") or "Demo Hotel",
         timezone="Europe/London",
         catalogue=(CatalogueItem(sku="ROOM", name="Room", unit_price=price),),
-        opening_hours=(OpeningHours(weekday=0, opens=check_in, closes=check_out),),
+        opening_hours=(
+            OpeningHours(
+                weekday=0,
+                opens=_clock(data.get("check_in_time"), time(15, 0)),
+                closes=_clock(data.get("check_out_time"), time(11, 0)),
+            ),
+        ),
         policies=Policies(
-            cancellation_window_hours=cancellation_hours,
+            cancellation_window_hours=cancellation,
             deposit_required_from_party_size=1,
-            deposit_per_head=deposit_per_head,
-            refund_window_hours=cancellation_hours,
+            deposit_per_head=deposit,
+            refund_window_hours=cancellation,
             max_party_size=4,
             discount_authority=0,
         ),
     )
-
-
-def _client_beliefs_from_business(
-    business: BusinessConfig,
-    lie_field: str | None = "set lunch",
-    lie_value: str | None = None,
-) -> ClientBeliefs:
-    facts: dict[str, str] = {}
-
-    deposit = business.policies.deposit_per_head / 100
-    facts["deposit"] = f"The deposit is £{deposit:.2f} per person."
-
-    if business.catalogue:
-        price = business.catalogue[0].unit_price / 100
-        facts["set lunch"] = f"The set lunch is £{price:.2f}."
-
-    if business.opening_hours:
-        h = business.opening_hours[0]
-        facts["opening hours"] = (
-            f"Our opening hours are {h.opens:%H:%M} to {h.closes:%H:%M}."
-        )
-
-    facts["cancellation"] = (
-        f"The cancellation window is {business.policies.cancellation_window_hours} hours."
-    )
-
-    facts["party"] = (
-        f"The party size we can seat is {business.policies.max_party_size}."
-    )
-
-    aliases: dict[str, str] = {
-        "price": "set lunch",
-        "catalogue": "set lunch",
-        "hours": "opening hours",
-        "party_size": "party",
-        "capacity": "party",
-    }
-    field = aliases.get(lie_field, lie_field) if lie_field else None
-
-    if field and field in facts:
-        if lie_value:
-            facts[field] = lie_value
-        else:
-            if field == "deposit":
-                facts[field] = f"The deposit is £{deposit * 1.5:.2f} per person."
-            elif field == "set lunch" and business.catalogue:
-                price = business.catalogue[0].unit_price / 100
-                facts[field] = f"The set lunch is £{price * 1.5:.2f}."
-            elif field == "opening hours" and business.opening_hours:
-                h = business.opening_hours[0]
-                # Shift later to avoid matching the true value.
-                facts[field] = "Our opening hours are 09:00 to 21:00."
-            elif field == "cancellation":
-                hours = business.policies.cancellation_window_hours
-                facts[field] = f"The cancellation window is {hours * 2} hours."
-            elif field == "party":
-                size = business.policies.max_party_size
-                facts[field] = f"The party size we can seat is {size + 3}."
-
-    return ClientBeliefs(facts=facts)
 
 
 def main() -> None:
@@ -200,59 +104,31 @@ def main() -> None:
     parser.add_argument(
         "--url",
         default="https://www.atlantis.com/dubai/atlantis-the-palm",
-        help="Hotel or business page to extract public facts from.",
+        help="Page to extract public facts from.",
     )
-    parser.add_argument(
-        "--domain",
-        default="atlantis.com",
-        help="Domain for brand lookup.",
-    )
+    parser.add_argument("--domain", default="atlantis.com", help="Domain for brand lookup.")
     parser.add_argument(
         "--lie-field",
         default="set lunch",
-        choices=["deposit", "set lunch", "opening hours", "cancellation", "party"],
-        help="Which fact the client's internal knowledge gets wrong.",
+        choices=LIE_FIELDS,
+        help="Which fact the client gets wrong.",
     )
-    parser.add_argument(
-        "--lie-value",
-        default=None,
-        help="Override the lie with a full sentence.",
-    )
-    parser.add_argument(
-        "--max-turns",
-        type=int,
-        default=10,
-        help="Max red-team turns.",
-    )
-    parser.add_argument(
-        "--adaptive",
-        action="store_true",
-        help="Use the adaptive (claim-extraction) red team instead of the scripted one.",
-    )
+    parser.add_argument("--lie-value", default=None, help="Override the lie with a sentence.")
+    parser.add_argument("--max-turns", type=int, default=10, help="Max red-team turns.")
     args = parser.parse_args()
 
-    _load_env(Path(".env"))
-    _load_env(Path("secrets.env"))
+    load_env()
 
     business = _extract_business(args.url, args.domain)
-    client_beliefs = _client_beliefs_from_business(
-        business, lie_field=args.lie_field, lie_value=args.lie_value
-    )
+    beliefs = client_beliefs_with_lie(business, args.lie_field, args.lie_value)
 
-    print("\n=== Red-team ground truth (BusinessConfig) ===")
+    print("\n=== Red-team ground truth ===")
     print(business.model_dump_json(indent=2))
-    print("\n=== Client private beliefs (ClientBeliefs) ===")
-    print(client_beliefs.model_dump_json(indent=2))
-
-    red_team = None
-    if args.adaptive:
-        red_team = AdaptiveRedTeamSimulator(ground_truth=business, max_turns=args.max_turns)
+    print("\n=== Client beliefs (one field corrupted) ===")
+    print(beliefs.model_dump_json(indent=2))
 
     result = run_red_team_episode(
-        business=business,
-        client_beliefs=client_beliefs,
-        max_turns=args.max_turns,
-        red_team=red_team,
+        business=business, client_beliefs=beliefs, max_turns=args.max_turns
     )
 
     print(f"\nCracked: {result.cracked}")

@@ -53,6 +53,51 @@ def test_analyst_marks_confirmed_when_client_says_truth() -> None:
     assert not analyst.casefile.cracked
 
 
+def test_analyst_confirms_truth_phrased_differently() -> None:
+    """The truth in words is still the truth; string matching scored this wrong."""
+    analyst = Analyst(_sample_business())
+    analyst.update("The deposit comes to fifteen — 15 pounds a head.")
+
+    assert "deposit" in analyst.casefile.confirmed_facts
+    assert not analyst.casefile.cracked
+
+
+def test_analyst_catches_lie_phrased_differently() -> None:
+    """A rephrased lie is still a lie, so it must stage a clarification."""
+    analyst = Analyst(_sample_business())
+    analyst.update("The deposit is 20 pounds a head.")
+
+    assert analyst.casefile.pending_clarification == "deposit"
+    assert "deposit" not in analyst.casefile.confirmed_facts
+
+
+def test_analyst_ignores_topic_raised_without_a_value() -> None:
+    """A hedge is neither a confirmation nor a contradiction."""
+    analyst = Analyst(_sample_business())
+    analyst.update("I'd have to check what the deposit is.")
+
+    assert not analyst.casefile.confirmed_facts
+    assert not analyst.casefile.discrepancies
+    assert analyst.casefile.pending_clarification is None
+
+
+def test_analyst_confirms_every_field_of_a_truthful_client() -> None:
+    """The negative control: a truthful client must produce no discrepancies."""
+    analyst = Analyst(_sample_business())
+    for claim in (
+        "The deposit is £15.00 per person.",
+        "The set lunch is £24.00.",
+        "We open 12:00 and close 23:00.",
+        "The cancellation window is 24 hours.",
+        "The largest party we can seat is 12.",
+    ):
+        analyst.update(claim)
+
+    assert not analyst.casefile.discrepancies
+    assert not analyst.casefile.cracked
+    assert analyst.next_target() is None
+
+
 def test_analyst_stages_clarification_before_crack() -> None:
     """A wrong first answer stages clarification, not an immediate crack."""
     analyst = Analyst(_sample_business())

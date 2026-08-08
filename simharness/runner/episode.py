@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from simharness.adapters.client import SimulatedClientAgent
 from simharness.schemas import (
@@ -35,11 +34,10 @@ def run_red_team_episode(
     max_turns: int = 6,
     episode_id: str = "red-team-0",
     seed: int = 0,
-    red_team: Any | None = None,
 ) -> RedTeamEpisodeResult:
     """Run one red-team caller against a simulated client and return whether it cracked."""
     client_beliefs = client_beliefs or ClientBeliefs()
-    red_team = red_team or RedTeamSimulator(ground_truth=business, max_turns=max_turns)
+    red_team = RedTeamSimulator(ground_truth=business, max_turns=max_turns)
     client = SimulatedClientAgent(business, client_beliefs)
 
     world_state = WorldState(business=business, now=datetime(2026, 3, 10, 10, 0))
