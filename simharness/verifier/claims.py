@@ -62,6 +62,16 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset(
         "pound",
         "pounds",
         "quid",
+        "dirham",
+        "dirhams",
+        "aed",
+        "riyal",
+        "riyals",
+        "sar",
+        "dollar",
+        "dollars",
+        "euro",
+        "euros",
         "available",
         "availability",
         "booked",
@@ -86,7 +96,17 @@ DOMAIN_KEYWORDS: frozenset[str] = frozenset(
 )
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
-_MONEY = re.compile(r"£\s?(\d+(?:\.\d{1,2})?)|(\d+(?:\.\d{1,2})?)\s*(?:pounds?|quid|gbp)\b", re.I)
+# Currency is not decoration. A GBP-only pattern silently skips every price a
+# Gulf or US agent quotes — the claims are extracted, found to carry no currency,
+# and grounded against the generic number bag, so a hallucinated fee reads as
+# correct. Found by pointing the harness at a dirham price list.
+_CURRENCY_SYMBOL = r"[£$€₹]|\bAED\b|\bSAR\b|\bUSD\b|\bEUR\b|\bGBP\b"
+_CURRENCY_WORD = r"pounds?|quid|dirhams?|riyals?|dollars?|euros?|rupees?|cents?|fils"
+_MONEY = re.compile(
+    rf"(?:{_CURRENCY_SYMBOL})\s?(\d+(?:\.\d{{1,2}})?)"
+    rf"|(\d+(?:\.\d{{1,2}})?)\s*(?:{_CURRENCY_WORD})\b",
+    re.I,
+)
 _CLOCK = re.compile(r"\b(\d{1,2}):(\d{2})\s*(am|pm)?\b", re.I)
 _HOUR_MERIDIEM = re.compile(r"\b(\d{1,2})\s*(am|pm)\b", re.I)
 _PERCENT = re.compile(r"\b(\d+(?:\.\d+)?)\s*%")

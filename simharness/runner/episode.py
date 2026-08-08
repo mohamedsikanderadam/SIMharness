@@ -73,6 +73,9 @@ def run_episode(
     noise = noise or NoiseConfig()
     seeds = EpisodeSeeds.derive(seed, scenario.scenario_id, persona.persona_id, episode_index)
 
+    # Computed up front, not at the end: adapters key their per-episode state on
+    # it, and an id that only exists once the episode is over is no use to them.
+    episode_id = f"{scenario.scenario_id}:{persona.persona_id}:{seed}:{episode_index}"
     world = World(build_world(scenario.world_builder, seed), scenario.enabled_tools)
     initial = world.snapshot(0)
     turns: list[Turn] = []
@@ -123,11 +126,11 @@ def run_episode(
             termination = output.termination
             break
 
-        turns.append(_agent_turn(agent, scenario, world, turns, max_tool_iterations))
+        turns.append(_agent_turn(agent, scenario, world, turns, max_tool_iterations, episode_id))
 
     final = world.snapshot(len(turns))
     trajectory = Trajectory(
-        episode_id=f"{scenario.scenario_id}:{persona.persona_id}:{seed}:{episode_index}",
+        episode_id=episode_id,
         scenario_id=scenario.scenario_id,
         persona_id=persona.persona_id,
         seeds=seeds,
@@ -151,7 +154,12 @@ def run_episode(
 
 
 def _agent_turn(
-    agent: Agent, scenario: Scenario, world: World, turns: list[Turn], max_iterations: int
+    agent: Agent,
+    scenario: Scenario,
+    world: World,
+    turns: list[Turn],
+    max_iterations: int,
+    episode_id: str,
 ) -> Turn:
     """One agent turn, including its inner tool loop."""
     index = len(turns)
@@ -165,7 +173,7 @@ def _agent_turn(
     for _ in range(max_iterations):
         response = agent.respond(
             AgentRequest(
-                episode_id="",
+                episode_id=episode_id,
                 turn_index=index,
                 history=history,
                 tools=world.specs(),

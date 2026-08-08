@@ -47,6 +47,9 @@ def test_verifier_imports_only_schemas_and_itself() -> None:
 
 def test_verifier_has_no_provider_or_network_dependency() -> None:
     banned = {"anthropic", "openai", "httpx", "requests", "random", "time"}
+    # `time` and `httpx` are legitimate in adapters; in the verifier they would
+    # mean a wall clock or a network call inside the reward, which is the whole
+    # thing this rule exists to prevent.
     for module in _modules("verifier"):
         offending = _imports(module) & banned
         assert not offending, f"{module.name} imports {offending}"
