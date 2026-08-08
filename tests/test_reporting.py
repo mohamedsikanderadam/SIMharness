@@ -622,6 +622,9 @@ def test_recordings_are_transcribed_in_name_order_with_the_stem_as_call_id(
         ("four thousand five hundred", "4500"),
         ("twenty four hours", "24 hours"),
         ("up to ten", "up to 10"),
+        ("three hundred and fifty", "350"),
+        # Filler keeps its place rather than jumping ahead of the number.
+        ("AED fifty a night", "AED 50 a night"),
         # Prose that happens to contain number words is left alone.
         ("a deluxe room and a suite", "a deluxe room and a suite"),
         ("AED 450.00 per night", "AED 450.00 per night"),
@@ -629,6 +632,37 @@ def test_recordings_are_transcribed_in_name_order_with_the_stem_as_call_id(
 )
 def test_spoken_numbers_become_digits(spoken: str, expected: str) -> None:
     assert digits_for_number_words(spoken) == expected
+
+
+@pytest.mark.parametrize(
+    "spoken",
+    [
+        "two fifty dirhams",   # 250 to a caller, but 2 and 50 to a parser
+        "eight fifteen am",    # a time, not 8 + 15
+        "twenty twenty five",
+    ],
+)
+def test_an_ambiguous_spoken_number_is_left_in_words(spoken: str) -> None:
+    """Adding the parts would invent a figure, and the audit would then compare
+    that invention against the fact sheet - fabricating a critical finding
+    against an agent that quoted the price correctly. A miss is the safer error."""
+    assert digits_for_number_words(spoken) == spoken
+
+
+def test_an_ambiguous_spoken_price_is_not_graded_as_wrong() -> None:
+    log = CallLog(
+        call_id="ambiguous",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text="What is a deluxe room?"),
+            CallTurn(
+                index=1,
+                speaker=LogSpeaker.AGENT,
+                text="A deluxe room is four fifty dirhams a night.",
+            ),
+        ),
+    )
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    assert [f for f in report.findings if f.kind is FindingKind.WRONG_FACT] == []
 
 
 def test_a_price_said_aloud_is_checked_like_a_price_written_down() -> None:

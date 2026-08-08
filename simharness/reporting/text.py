@@ -57,23 +57,31 @@ def digits_for_number_words(text: str) -> str:
 
     ``and`` and ``a`` are consumed only *inside* a run of number words, so
     "a deluxe room" is untouched while "a hundred and fifty" is not.
+
+    A run that does not fold to exactly one figure is left in words. "Two fifty"
+    means 250 to a caller and "eight fifteen" means a time, but neither is
+    recoverable from the words alone — and a guess here is not a missed finding,
+    it is a *fabricated* one, because the invented figure would be compared
+    against the fact sheet and contradict it. Leaving those unparsed restores
+    them to what they were before this function existed: unadjudicable.
     """
     words = text.split()
     out: list[str] = []
     run: list[str] = []
 
     def flush() -> None:
+        tail: list[str] = []
         while run and run[-1].strip(",.!?;:").lower() in {"and", "a"}:
-            out.append(run.pop())
-        if not run:
-            return
-        value = _value_of(run)
-        if value is None:
-            out.extend(run)
-        else:
-            trailing = run[-1][len(run[-1].rstrip(",.!?;:")) :]
-            out.append(f"{value}{trailing}")
-        run.clear()
+            tail.insert(0, run.pop())
+        if run:
+            value = _value_of(run)
+            if value is None:
+                out.extend(run)
+            else:
+                trailing = run[-1][len(run[-1].rstrip(",.!?;:")) :]
+                out.append(f"{value}{trailing}")
+            run.clear()
+        out.extend(tail)
 
     for word in words:
         bare = word.strip(",.!?;:").lower()
@@ -87,29 +95,70 @@ def digits_for_number_words(text: str) -> str:
 
 
 def _value_of(run: list[str]) -> int | None:
-    """Fold a run of number words into an integer, or ``None`` if it is prose.
+    """Fold a run of number words into one integer.
 
-    Returns ``None`` for a run carrying no actual digit-bearing word, so a
-    stray "and" never becomes ``0``.
+    ``None`` when the run carries no digit-bearing word at all (so a stray "and"
+    never becomes ``0``) and, deliberately, when it holds more than one figure.
     """
-    total = 0
-    current = 0
-    seen = False
+    figures = _figures(run)
+    return figures[0] if len(figures) == 1 else None
+
+
+def _kind(word: str) -> str:
+    if word in _SCALES:
+        return "scale"
+    value = _SMALL[word]
+    if value >= 20:
+        return "tens"
+    return "teens" if value >= 10 else "unit"
+
+
+def _continues(previous: str, kind: str) -> bool:
+    """Whether ``kind`` extends the figure in progress rather than starting one.
+
+    English composes a number in only a few ways: anything may be multiplied by a
+    scale ("three *hundred*"), a scale may be followed by a remainder ("three
+    hundred *fifty*"), and a tens word may take a unit ("twenty *four*"). Every
+    other adjacency is two numbers in a row - "two fifty", "eight fifteen" - and
+    is reported as such rather than added together.
+    """
+    if kind == "scale" or previous == "scale":
+        return True
+    return previous == "tens" and kind == "unit"
+
+
+def _figures(run: list[str]) -> list[int]:
+    """Every distinct number in a run of number words."""
+    figures: list[int] = []
+    total = current = 0
+    previous = ""
+
+    def close() -> None:
+        nonlocal total, current, previous
+        if previous:
+            figures.append(total + current)
+        total = current = 0
+        previous = ""
+
     for word in run:
         bare = word.strip(",.!?;:").lower()
         if bare in {"and", "a"}:
             continue
-        if bare in _SMALL:
-            current += _SMALL[bare]
-            seen = True
-        elif bare in _SCALES:
+        kind = _kind(bare)
+        if previous and not _continues(previous, kind):
+            close()
+        if kind == "scale":
             scale = _SCALES[bare]
             current = (current or 1) * scale
             if scale >= 1000:
                 total += current
                 current = 0
-            seen = True
-    return total + current if seen else None
+        else:
+            current += _SMALL[bare]
+        previous = kind
+
+    close()
+    return figures
 
 
 _PUNCTUATION = re.compile(r"[^\w\s:.-]+")
