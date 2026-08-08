@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIMharness — is the agent on the phone telling the truth?</title>
+<style>
+:root {
+  --ink: #14181f; --muted: #5b6472; --line: #e3e7ee; --bg: #f6f7f9;
+  --good: #1f8a52; --warn: #b8710e; --bad: #c02b2b; --none: #8a93a2;
+  --accent: #23407a;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.deck { height: 100vh; overflow: hidden; position: relative; }
+.slide {
+  display: none; height: 100vh; padding: 6vh 7vw 9vh;
+  flex-direction: column; justify-content: center; max-width: 1100px; margin: 0 auto;
+}
+.slide.on { display: flex; }
+.eyebrow {
+  margin: 0 0 6px; text-transform: uppercase; letter-spacing: .14em;
+  font-size: 12px; font-weight: 700; color: var(--accent);
+}
+h1 { font-size: 40px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -.02em; }
+h2 { font-size: 30px; line-height: 1.2; margin: 0 0 18px; letter-spacing: -.015em; }
+.rule { border: 0; border-top: 3px solid var(--ink); margin: 14px 0 22px; }
+p { margin: 0 0 14px; max-width: 60ch; }
+.lede { font-size: 21px; line-height: 1.45; max-width: 56ch; }
+.muted { color: var(--muted); }
+strong { font-weight: 650; }
+ul { margin: 0 0 14px; padding-left: 20px; max-width: 62ch; }
+li { margin-bottom: 9px; }
+code, .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .88em;
+}
+code { background: #eceff4; padding: 1px 5px; border-radius: 3px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; align-items: start; }
+.card {
+  background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px;
+}
+.card h3 {
+  margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--muted);
+}
+.term {
+  background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+  border-radius: 6px; padding: 14px 18px; font-family: ui-monospace, SFMono-Regular, Menlo,
+  Consolas, monospace; font-size: 14px; line-height: 1.7; white-space: pre-wrap;
+}
+.term .who { color: var(--accent); font-weight: 700; }
+.term .sys { color: var(--muted); }
+.term .bad { color: var(--bad); font-weight: 700; }
+.term .good { color: var(--good); font-weight: 700; }
+.verdict {
+  margin-top: 14px; padding: 12px 16px; border-radius: 6px; font-weight: 650;
+  background: #fdf0f0; border: 1px solid var(--bad); color: var(--bad);
+}
+.verdict.ok { background: #eef7f1; border-color: var(--good); color: var(--good); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
+.foot {
+  position: fixed; bottom: 18px; left: 0; right: 0; display: flex;
+  justify-content: space-between; padding: 0 7vw; font-size: 12px; color: var(--muted);
+}
+.limits { border-left: 4px solid var(--warn); background: #fff; padding: 12px 18px;
+  border-radius: 6px; border-top: 1px solid var(--line); border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line); }
+.limits h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--warn); }
+.limits ul { margin: 0; }
+.limits li { margin-bottom: 5px; font-size: 15px; }
+/* Export: one 16:9 landscape page per slide.
+   The screen layout is sized in vh/vw, which collapses in print, so the slide
+   box is restated in mm against an explicit @page. */
+@page { size: 297mm 167mm; margin: 0; }
+@media print {
+  html, body { height: auto; background: #fff; }
+  .deck { height: auto; overflow: visible; }
+  .foot { display: none; }
+  .slide {
+    display: flex !important;
+    width: 297mm; height: 167mm;
+    padding: 14mm 18mm;
+    margin: 0; max-width: none;
+    break-after: page; page-break-after: always;
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .slide:last-child { break-after: auto; page-break-after: auto; }
+  h1 { font-size: 32px; }
+  h2 { font-size: 25px; }
+  .lede { font-size: 18px; }
+  body { font-size: 15px; }
+  .term { font-size: 12.5px; line-height: 1.6; }
+  li, p, td, th { font-size: 14px; }
+  .card p, .limits li { font-size: 13.5px; }
+}
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- 1 ................................................................. -->
+  <section class="slide on">
+    <p class="eyebrow">SIMharness</p>
+    <h1>Is the agent on the phone telling the truth?</h1>
+    <hr class="rule">
+    <p class="lede">
+      Voice agents answer customers about refunds, cancellations and prices. They
+      state those policies confidently — and get them wrong, because the policy
+      lives on a website that changed and the agent's knowledge didn't.
+    </p>
+    <p class="lede">
+      Nobody finds out until a customer acts on it and demands the refund they
+      were promised.
+    </p>
+    <p class="muted" style="margin-top:10px">
+      <strong>For the team that deployed the agent.</strong> We call it like a
+      customer, check every factual claim against your live website, and tell you
+      which ones it gets wrong — before a customer does.
+    </p>
+  </section>
+
+  <!-- 2 ................................................................. -->
+  <section class="slide">
+    <p class="eyebrow">Demo — one call, checked live</p>
+    <h2>The caller starts knowing none of the hotel's policies</h2>
+    <div class="term"><span class="who">caller</span>  What's your cancellation policy?
+<span class="who">agent </span>  You can cancel free of charge right up until <span class="bad">midnight on the day of arrival</span>.
+
+<span class="sys">      ↓ having heard a claim, go and check it</span>
+<span class="sys">      fetching 'cancellation policy' via Context.dev …</span>
+<span class="sys">      live (1.4s): "… cancel for free up until <span class="good">2pm the day before arrival</span>."</span>
+
+<span class="who">caller</span>  Your website says: "… 2pm the day before arrival."
+        Can you confirm your cancellation policy?
+<span class="who">agent </span>  You can cancel free of charge right up until midnight on the day of arrival.</div>
+    <div class="verdict">FALSE CLAIM — contradicted the website, then repeated it under challenge</div>
+    <p class="muted" style="margin-top:12px; font-size:15px">
+      One <code>/web/extract</code> call, made <em>after</em> the claim, against the
+      hotel's own public page, asking for one field verbatim. Nothing cached.
+      <code>--honest</code> runs the control: the same fetch returns
+      <strong>MATCHES the website</strong>.
+    </p>
+  </section>
+
+  <!-- 3 ................................................................. -->
+  <section class="slide">
+    <p class="eyebrow">Why live data</p>
+    <h2>The thing we check against is exactly the thing that changes</h2>
+    <div class="cols">
+      <div>
+        <p>
+          A cached fact sheet doesn't catch a stale agent. It just becomes a
+          <strong>second stale copy</strong> — and then we confidently report
+          false claims that aren't false.
+        </p>
+        <p>
+          <strong>Mid-conversation, yes.</strong> The fetch is triggered by what
+          the agent said. The caller doesn't know which policy to check until it
+          hears a claim, so there is nothing to prefetch. Edit the page mid-call
+          and the next claim is checked against the new wording.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Pipeline</h3>
+        <p class="mono" style="font-size:14px; line-height:1.8; margin:0">
+          page HTML<br>
+          &nbsp;&nbsp;↓ <span class="muted">LLM — Context.dev</span><br>
+          policy sentence, verbatim<br>
+          &nbsp;&nbsp;↓ <span class="muted">regex — ours</span><br>
+          <code>("14:00",)</code> vs <code>("00:00",)</code><br>
+          &nbsp;&nbsp;↓ <span class="muted">==</span><br>
+          <strong>verdict</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 ................................................................. -->
+  <section class="slide">
+    <p class="eyebrow">What it does on its own</p>
+    <h2>It compares values, and it escalates rather than accuses</h2>
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Parses each claim into <strong>money, a clock time, a duration or a
+            count</strong> — so "twenty pounds" and "£20.00" are one answer, and a
+            rephrased lie is still caught.</li>
+          <li>Decides <strong>when it lacks ground truth</strong> and fires the
+            lookup itself.</li>
+          <li>Three outcomes, not two: matches / contradicts / <strong>can't be
+            checked</strong>. A hedge moves nothing.</li>
+          <li>A contradiction <strong>quotes the source and asks again</strong>.
+            Only a repeat is recorded — one mistake isn't a lie.</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>ElevenLabs</h3>
+          <p style="margin:0; font-size:15px">
+            Streaming TTS <code>eleven_turbo_v2_5</code>, raw <code>pcm_24000</code>
+            straight to the speaker — no file round-trip. Scribe realtime STT over
+            websocket for the two-way call.
+          </p>
+        </div>
+        <div class="card">
+          <h3>Voice as characterisation</h3>
+          <p style="margin:0; font-size:15px">
+            The caller is calm and unhurried — an auditor, not an interrogator;
+            pressure produces defensiveness, not truth. The agent under test is
+            smooth and confident, which is the point: it is most dangerous when it
+            sounds most certain.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 ................................................................. -->
+  <section class="slide">
+    <p class="eyebrow">Novelty, and what we'd fix next</p>
+    <h2>Live web data usually informs an agent. We use it to prosecute one.</h2>
+    <p>
+      The same scrape becomes <strong>evidence in an adversarial conversation</strong>,
+      fetched reactively, mid-call, in response to something the agent just said —
+      then quoted back to it.
+    </p>
+    <table>
+      <tr><th>Hardest problem</th><th>Found by</th></tr>
+      <tr>
+        <td>String comparison scored "twenty pounds" as a lie and let rephrased
+            lies through. Now both sides parse to values.</td>
+        <td class="muted">running it</td>
+      </tr>
+      <tr>
+        <td>Scraped prose says <code>2pm</code>, never <code>14:00</code>. Our parser
+            returned nothing for real deadlines — scoring a genuine lie as
+            unverifiable. Needed "midnight" as an answer, and times matched
+            <em>before</em> durations, or "2pm the <em>day</em> before" reads as 24h.</td>
+        <td class="muted">running it</td>
+      </tr>
+    </table>
+    <div class="limits" style="margin-top:20px">
+      <h3>Where it doesn't work yet</h3>
+      <ul>
+        <li><strong>The agent under test is simulated</strong> and we inject its
+          wrong belief. The ground truth and the comparison are real; the target
+          isn't yet one we don't control.</li>
+        <li><strong>Only claims with a number in them.</strong> It could not check
+          "we don't have our own parking" — and reported that as unverifiable
+          rather than guessing.</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<div class="foot">
+  <span>SIMharness — ElevenLabs × Context.dev</span>
+  <span><span id="n">1</span> / 5 &nbsp;·&nbsp; ← →</span>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const counter = document.getElementById('n');
+  let i = 0;
+  function show(next) {
+    i = Math.max(0, Math.min(slides.length - 1, next));
+    slides.forEach((s, k) => s.classList.toggle('on', k === i));
+    counter.textContent = i + 1;
+  }
+  addEventListener('keydown', (e) => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); show(i - 1); }
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+  addEventListener('click', (e) => show(i + (e.clientX < innerWidth * 0.25 ? -1 : 1)));
+</script>
+</body>
+</html>
