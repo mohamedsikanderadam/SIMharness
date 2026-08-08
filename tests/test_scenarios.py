@@ -89,9 +89,13 @@ def test_hallucinating_agent_fails_on_facts_alone() -> None:
     report = audit("02_hallucinating_agent")
     assert report.grade.letter in {"D", "F"}
     critical = [f for f in report.findings if f.severity is Severity.CRITICAL]
-    assert len(critical) == 3
+    assert len(critical) == 4
     assert {f.fact_key for f in critical} == {
         "price:DELUXE",
+        # Answered "Deposit?" with "We ask for AED 20.00 per guest", never
+        # saying the word. Missed until claims could be attributed to the
+        # question they answer.
+        "deposit",
         "cancellation_window",
         "max_party_size",
     }

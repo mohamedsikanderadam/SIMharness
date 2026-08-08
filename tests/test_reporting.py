@@ -18,7 +18,11 @@ from simharness.reporting.factsheet import build_fact_sheet
 from simharness.reporting.grading import RUBRIC_V1, grade_report, letter_for, score_category
 from simharness.reporting.ingest import parse_any, parse_text_transcript
 from simharness.reporting.judge import CallVerdict, judge_calls
-from simharness.reporting.metrics.compliance import audit_claims, compliance_metrics
+from simharness.reporting.metrics.compliance import (
+    _capacity_claim,
+    audit_claims,
+    compliance_metrics,
+)
 from simharness.reporting.render import render_html
 from simharness.reporting.schemas import (
     CallLog,
@@ -36,6 +40,7 @@ from simharness.reporting.schemas import (
     Severity,
     ToolInvocation,
 )
+from simharness.reporting.text import digits_for_number_words
 from simharness.reporting.transcribe import (
     TranscribedWord,
     call_log_from_words,
@@ -602,3 +607,172 @@ def test_recordings_are_transcribed_in_name_order_with_the_stem_as_call_id(
 
     logs = transcribe_recordings(tmp_path, Fake())
     assert [log.call_id for log in logs] == ["call-a", "call-b"]
+
+
+# --------------------------------------------------------------------------- #
+# Spoken numbers
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("spoken", "expected"),
+    [
+        ("three hundred dirhams", "300 dirhams"),
+        ("a hundred and fifty dirhams", "a 150 dirhams"),
+        ("four thousand five hundred", "4500"),
+        ("twenty four hours", "24 hours"),
+        ("up to ten", "up to 10"),
+        ("three hundred and fifty", "350"),
+        # Filler keeps its place rather than jumping ahead of the number.
+        ("AED fifty a night", "AED 50 a night"),
+        # Prose that happens to contain number words is left alone.
+        ("a deluxe room and a suite", "a deluxe room and a suite"),
+        ("AED 450.00 per night", "AED 450.00 per night"),
+    ],
+)
+def test_spoken_numbers_become_digits(spoken: str, expected: str) -> None:
+    assert digits_for_number_words(spoken) == expected
+
+
+@pytest.mark.parametrize(
+    "spoken",
+    [
+        "two fifty dirhams",   # 250 to a caller, but 2 and 50 to a parser
+        "eight fifteen am",    # a time, not 8 + 15
+        "twenty twenty five",
+    ],
+)
+def test_an_ambiguous_spoken_number_is_left_in_words(spoken: str) -> None:
+    """Adding the parts would invent a figure, and the audit would then compare
+    that invention against the fact sheet - fabricating a critical finding
+    against an agent that quoted the price correctly. A miss is the safer error."""
+    assert digits_for_number_words(spoken) == spoken
+
+
+def test_an_ambiguous_spoken_price_is_not_graded_as_wrong() -> None:
+    log = CallLog(
+        call_id="ambiguous",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text="What is a deluxe room?"),
+            CallTurn(
+                index=1,
+                speaker=LogSpeaker.AGENT,
+                text="A deluxe room is four fifty dirhams a night.",
+            ),
+        ),
+    )
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    assert [f for f in report.findings if f.kind is FindingKind.WRONG_FACT] == []
+
+
+def test_a_price_said_aloud_is_checked_like_a_price_written_down() -> None:
+    """Speech recognition returns what was said. Scribe transcribed a wrong rate
+    as "three hundred dirhams", which the money parser could not see at all - so
+    the audit passed a call that had misquoted the price."""
+    log = CallLog(
+        call_id="spoken",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text="What is a deluxe room?"),
+            CallTurn(
+                index=1,
+                speaker=LogSpeaker.AGENT,
+                text="A deluxe room is three hundred dirhams a night.",
+            ),
+        ),
+    )
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    wrong = [f for f in report.findings if f.kind is FindingKind.WRONG_FACT]
+    assert len(wrong) == 1
+    assert wrong[0].expected == "AED 450.00"
+    assert wrong[0].severity is Severity.CRITICAL
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("we can accommodate up to ten in one booking", 10),
+        ("we can seat 8", 8),
+        ("maximum of 4 guests", 4),
+        ("a party of six", 6),
+        # A limit phrase alone is not a capacity claim.
+        ("you can cancel up to 48 hours before arrival", None),
+        ("a deposit of up to 150 dirhams", None),
+    ],
+)
+def test_only_limits_on_people_are_read_as_capacity(text: str, expected: int | None) -> None:
+    assert _capacity_claim(text) == expected
+
+
+def test_a_capacity_claim_is_audited_even_without_a_fact_alias() -> None:
+    """"We can accommodate up to 10" names no alias for max party size and is
+    nonetheless a claim about it."""
+    log = CallLog(
+        call_id="capacity",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text="We are seven."),
+            CallTurn(
+                index=1,
+                speaker=LogSpeaker.AGENT,
+                text="No problem, we can accommodate up to ten in one booking.",
+            ),
+        ),
+    )
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    wrong = [f for f in report.findings if f.kind is FindingKind.WRONG_FACT]
+    assert [f.expected for f in wrong] == ["4"]
+
+
+# --------------------------------------------------------------------------- #
+# What the agent is talking about
+# --------------------------------------------------------------------------- #
+
+
+def exchange(question: str, answer: str) -> CallLog:
+    return CallLog(
+        call_id="exchange",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text=question),
+            CallTurn(index=1, speaker=LogSpeaker.AGENT, text=answer),
+        ),
+    )
+
+
+def wrong_facts(log: CallLog) -> list[str]:
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    return [f.fact_key for f in report.findings if f.kind is FindingKind.WRONG_FACT]
+
+
+def test_an_answer_is_checked_against_the_question_it_answers() -> None:
+    """Nobody answers "how much is a deluxe room?" by saying "a deluxe room is".
+    They say "those are three hundred dirhams", and the subject stays in the
+    question - so the wrong price went unchecked on every natural call."""
+    assert wrong_facts(
+        exchange("How much are the deluxe rooms?", "Those are three hundred dirhams a night.")
+    ) == ["price:ROOM"]
+
+
+def test_a_correct_answer_to_the_question_is_not_a_finding() -> None:
+    assert (
+        wrong_facts(
+            exchange("How much are the deluxe rooms?", "Those are four hundred and fifty dirhams.")
+        )
+        == []
+    )
+
+
+def test_the_agents_own_words_win_over_the_question() -> None:
+    """Asked about rooms, answered about the deposit. The answer is about what
+    it says it is about, not about what was asked."""
+    assert wrong_facts(
+        exchange("How much are the deluxe rooms?", "The deposit is AED 20.00 per guest.")
+    ) == ["deposit"]
+
+
+def test_a_question_the_agent_does_not_answer_is_not_held_against_coverage() -> None:
+    """The caller naming a fact the agent then says nothing numeric about is not
+    a gap in the rules, and must not drag down the coverage figure."""
+    answered = audit_claims(
+        [exchange("How much are the deluxe rooms?", "Let me look that up for you.")], sheet()
+    )
+    assert answered.mentioned_unadjudicable == 0
+    assert answered.checked == 0
