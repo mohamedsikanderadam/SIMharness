@@ -35,6 +35,7 @@ from simharness.reporting.schemas import (
     FactSource,
     Finding,
     FindingKind,
+    LogSpeaker,
     Metric,
     MetricBasis,
     Severity,
@@ -187,16 +188,29 @@ def audit_claims(logs: Sequence[CallLog], sheet: FactSheet) -> ClaimAudit:
     checked = correct = wrong = ungrounded = unadjudicable = 0
 
     for log in logs:
-        for turn in log.agent_turns:
+        asked = ""
+        for turn in log.turns:
+            if turn.speaker is not LogSpeaker.AGENT:
+                if turn.text:
+                    asked = turn.text
+                continue
             if not turn.text or is_question(turn.text):
                 continue
 
-            for fact in checkable:
-                if not _is_mentioned(fact, turn.text):
-                    continue
+            named = tuple(f for f in checkable if _is_mentioned(f, turn.text))
+            # Nobody answers "how much is a deluxe room?" by saying "a deluxe
+            # room is". They say "those are three hundred dirhams", and the
+            # subject stays in the question. Where the agent names no fact at
+            # all, the caller's last turn says what is being talked about.
+            topical = named or tuple(f for f in checkable if _is_mentioned(f, asked))
+
+            for fact in topical:
                 verdict = _adjudicate(fact, turn.text)
                 if verdict is None:
-                    unadjudicable += 1
+                    # Only the agent's own wording counts against coverage. The
+                    # caller naming a fact the agent then said nothing about is
+                    # not a gap in the rules.
+                    unadjudicable += bool(named)
                     continue
                 checked += 1
                 if verdict:

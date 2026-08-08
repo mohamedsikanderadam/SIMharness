@@ -720,3 +720,59 @@ def test_a_capacity_claim_is_audited_even_without_a_fact_alias() -> None:
     report = analyse_calls([log], sheet(), generated_at=NOW)
     wrong = [f for f in report.findings if f.kind is FindingKind.WRONG_FACT]
     assert [f.expected for f in wrong] == ["4"]
+
+
+# --------------------------------------------------------------------------- #
+# What the agent is talking about
+# --------------------------------------------------------------------------- #
+
+
+def exchange(question: str, answer: str) -> CallLog:
+    return CallLog(
+        call_id="exchange",
+        turns=(
+            CallTurn(index=0, speaker=LogSpeaker.CUSTOMER, text=question),
+            CallTurn(index=1, speaker=LogSpeaker.AGENT, text=answer),
+        ),
+    )
+
+
+def wrong_facts(log: CallLog) -> list[str]:
+    report = analyse_calls([log], sheet(), generated_at=NOW)
+    return [f.fact_key for f in report.findings if f.kind is FindingKind.WRONG_FACT]
+
+
+def test_an_answer_is_checked_against_the_question_it_answers() -> None:
+    """Nobody answers "how much is a deluxe room?" by saying "a deluxe room is".
+    They say "those are three hundred dirhams", and the subject stays in the
+    question - so the wrong price went unchecked on every natural call."""
+    assert wrong_facts(
+        exchange("How much are the deluxe rooms?", "Those are three hundred dirhams a night.")
+    ) == ["price:ROOM"]
+
+
+def test_a_correct_answer_to_the_question_is_not_a_finding() -> None:
+    assert (
+        wrong_facts(
+            exchange("How much are the deluxe rooms?", "Those are four hundred and fifty dirhams.")
+        )
+        == []
+    )
+
+
+def test_the_agents_own_words_win_over_the_question() -> None:
+    """Asked about rooms, answered about the deposit. The answer is about what
+    it says it is about, not about what was asked."""
+    assert wrong_facts(
+        exchange("How much are the deluxe rooms?", "The deposit is AED 20.00 per guest.")
+    ) == ["deposit"]
+
+
+def test_a_question_the_agent_does_not_answer_is_not_held_against_coverage() -> None:
+    """The caller naming a fact the agent then says nothing numeric about is not
+    a gap in the rules, and must not drag down the coverage figure."""
+    answered = audit_claims(
+        [exchange("How much are the deluxe rooms?", "Let me look that up for you.")], sheet()
+    )
+    assert answered.mentioned_unadjudicable == 0
+    assert answered.checked == 0
