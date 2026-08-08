@@ -10,3 +10,5 @@ cassettes/
 .DS_Store
 .env
 secrets.env
+audio_out/
+*.mp3
